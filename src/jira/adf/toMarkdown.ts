@@ -37,6 +37,7 @@ const BLOCK_TYPES = new Set([
 ]);
 /** Marks the markdown view renders, outermost first. `code` renders at the leaf. */
 const RENDERED_MARKS = ['link', 'strong', 'em', 'strike'];
+const SUPPORTED_MARKS = new Set([...RENDERED_MARKS, 'code']);
 const EMPHASIS: Record<string, string> = { strong: '**', em: '*', strike: '~~' };
 const PANEL_TEXT_CHARS = 30;
 const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s[\]]+/gi;
@@ -106,6 +107,11 @@ function rawHint(node: AdfNode): string {
       return labelled('status', str(attrs.text));
     case 'date':
       return labelled('date', isoDate(attrs.timestamp));
+    case 'table': {
+      const rows = (node.content ?? []).filter((r) => r.type === 'tableRow');
+      const cols = Math.max(0, ...rows.map((r) => (r.content ?? []).length));
+      return `table: ${rows.length} rows x ${cols} cols`;
+    }
     default:
       return node.type;
   }
@@ -168,6 +174,18 @@ function indent(text: string, by: number): string {
     .split('\n')
     .map((line, i) => (i === 0 || line === '' ? line : pad + line))
     .join('\n');
+}
+
+/**
+ * A cell GFM can hold without loss: exactly one paragraph of text with rendered marks and inline tokens
+ * (no hard breaks, which a table line cannot carry).
+ */
+function isInlineCell(cell: AdfNode): boolean {
+  const [only, ...rest] = cell.content ?? [];
+  if (!only || rest.length > 0 || only.type !== 'paragraph') return false;
+  return (only.content ?? []).every((n) =>
+    n.type === 'text' ? (n.marks ?? []).every((m) => SUPPORTED_MARKS.has(m.type)) : n.type !== 'hardBreak' && !BLOCK_TYPES.has(n.type),
+  );
 }
 
 function sameMark(a: AdfMark, b: AdfMark): boolean {
@@ -265,9 +283,11 @@ class Renderer {
     return items.join('\n');
   }
 
+  /** GFM when every cell is a single inline paragraph; otherwise the whole table is one block token. */
   private table(node: AdfNode): string {
-    const rows = (node.content ?? [])
-      .filter((r) => r.type === 'tableRow')
+    const tableRows = (node.content ?? []).filter((r) => r.type === 'tableRow');
+    if (!tableRows.every((r) => (r.content ?? []).every(isInlineCell))) return this.token(node, true);
+    const rows = tableRows
       .map((r) =>
         (r.content ?? []).map((cell) =>
           this.blocks(cell.content ?? [])

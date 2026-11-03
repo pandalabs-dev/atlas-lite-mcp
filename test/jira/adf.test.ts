@@ -115,19 +115,40 @@ describe('ADF to markdown', () => {
     expect(out).toBe('3. c\n   - inner\n4. d\n\n> q1\n>\n> q2\n\n---');
   });
 
-  it('keeps table cells on one line and escapes pipes', () => {
+  it('renders a table of single inline paragraphs as GFM, escaping pipes and keeping inline tokens', () => {
     const cell = (type: string, ...content: AdfNode[]): AdfNode => ({ type, content });
-    const out = md(
+    const { markdown, placeholders } = adfToMarkdown(
       doc({
         type: 'table',
         attrs: { layout: 'default' },
         content: [
-          { type: 'tableRow', content: [cell('tableHeader', p(t('a|b'))), cell('tableHeader', p(t('c')))] },
-          { type: 'tableRow', content: [cell('tableCell', p(t('x'), { type: 'hardBreak' }, t('y')), p(t('z'))), cell('tableCell')] },
+          { type: 'tableRow', content: [cell('tableHeader', p(t('a|b'))), cell('tableHeader', p(t('c', 'strong')))] },
+          { type: 'tableRow', content: [cell('tableCell', p(t('x '), { type: 'mention', attrs: { id: 'u1', text: '@Ana' } })), cell('tableCell', p())] },
         ],
       }),
     );
-    expect(out).toBe('| a\\|b | c |\n| --- | --- |\n| x y z |  |');
+    expect(markdown).toBe('| a\\|b | **c** |\n| --- | --- |\n| x {{atlas:1}} [mention: @Ana] |  |');
+    expect(placeholders.map((x) => [x.hint, x.block])).toEqual([['mention: @Ana', false]]);
+  });
+
+  it('turns a table whose cells hold block content into one block token that restores to the original', () => {
+    const row = (...cells: AdfNode[][]): AdfNode => ({ type: 'tableRow', content: cells.map((content) => ({ type: 'tableCell', content })) });
+    const head: AdfNode = { type: 'tableRow', content: [{ type: 'tableHeader', content: [p(t('h1'))] }, { type: 'tableHeader', content: [p(t('h2'))] }] };
+    const cases: [string, AdfNode[]][] = [
+      ['code block', [{ type: 'codeBlock', attrs: { language: 'ts' }, content: [t('x = 1')] }]],
+      ['list', [{ type: 'bulletList', content: [{ type: 'listItem', content: [p(t('a'))] }, { type: 'listItem', content: [p(t('b'))] }] }]],
+      ['two paragraphs', [p(t('one')), p(t('two'))]],
+      ['hard break', [p(t('x'), { type: 'hardBreak' }, t('y'))]],
+      ['block token', [{ type: 'panel', attrs: { panelType: 'info' }, content: [p(t('n'))] }]],
+    ];
+    for (const [name, content] of cases) {
+      const table: AdfNode = { type: 'table', attrs: { layout: 'default' }, content: [head, row([p(t('plain'))], content)] };
+      const original = doc(p(t('before')), table);
+      const { markdown, placeholders } = adfToMarkdown(original);
+      expect(markdown, name).toBe('before\n\n{{atlas:1}} [table: 2 rows x 2 cols]');
+      expect(placeholders, name).toEqual([{ n: 1, hint: 'table: 2 rows x 2 cols', block: true, original: table }]);
+      expect(markdownToAdf(markdown, tokens(...placeholders)).doc, name).toEqual(original);
+    }
   });
 });
 
@@ -210,7 +231,6 @@ describe('markdown to ADF', () => {
 
   it('round-trips escaped text, hard breaks, nested lists and inline tokens in headings and cells', () => {
     const mention: AdfNode = { type: 'mention', attrs: { id: 'u1', text: '@Ana' } };
-    const panel: AdfNode = { type: 'panel', attrs: { panelType: 'note' }, content: [p(t('n'))] };
     const original = doc(
       { type: 'heading', attrs: { level: 3 }, content: [t('Hi '), mention] },
       p(t('# a*b_c [d] 1. x'), { type: 'hardBreak' }, t('next line')),
@@ -219,7 +239,7 @@ describe('markdown to ADF', () => {
         type: 'table',
         content: [
           { type: 'tableRow', content: [{ type: 'tableHeader', content: [p(t('k'))] }] },
-          { type: 'tableRow', content: [{ type: 'tableCell', content: [panel] }] },
+          { type: 'tableRow', content: [{ type: 'tableCell', content: [p(t('see '), mention)] }] },
         ],
       },
     );
