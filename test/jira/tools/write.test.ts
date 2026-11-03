@@ -79,6 +79,7 @@ const updateRoutes: Route[] = [
           ],
         },
         summary: { name: 'Summary', required: true, schema: { type: 'string', system: 'summary' } },
+        description: { name: 'Description', required: false, schema: { type: 'string', system: 'description' } },
       },
     },
   },
@@ -148,6 +149,13 @@ describe('issue_create', () => {
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
+  it('issue_create upper-cases the project key', async () => {
+    const { text, calls } = await runWithCalls('issue_create', { project: 'gum', type: 'Bug', summary: 'x', fields: { Severity: 'S1' } });
+    expect(new URL(calls[0]!.url).pathname).toBe('/rest/api/3/issue/createmeta/GUM/issuetypes');
+    expect(calls.find((c) => c.method === 'POST')!.body.fields.project).toEqual({ key: 'GUM' });
+    expect(text).toBe('Created GUM-13 https://gumperr.atlassian.net/browse/GUM-13');
+  });
+
   it('issue_create lists issue types when the type does not match', async () => {
     expect(await run('issue_create', { type: 'Epic', summary: 'x' })).toEqual({ text: 'No issue type "Epic" in GUM. Types: Bug, Task.', isError: true });
   });
@@ -192,6 +200,18 @@ describe('issue_update', () => {
     expect(calls.map((c) => new URL(c.url).pathname)).toEqual(['/rest/api/3/issue/GUM-12/editmeta', '/rest/api/3/issue/GUM-12']);
     expect(calls[1]!.body).toEqual({ fields: { priority: { id: '3' } } });
     expect(text).toBe('Updated GUM-12: Priority');
+  });
+
+  it('issue_update refuses description inside fields', async () => {
+    const { text, isError, calls } = await runWithCalls('issue_update', { key: 'GUM-12', fields: { Description: 'Only text now' } });
+    expect({ text, isError }).toEqual({ text: 'Pass description as its own parameter.', isError: true });
+    expect(calls.map((c) => new URL(c.url).pathname)).toEqual(['/rest/api/3/issue/GUM-12/editmeta']);
+  });
+
+  it('issue_update lists each changed field once', async () => {
+    const { text, calls } = await runWithCalls('issue_update', { key: 'GUM-12', fields: { priority: 'high', Priority: 'low', Summary: 'Old' }, summary: 'New' });
+    expect(calls.at(-1)!.body).toEqual({ fields: { priority: { id: '3' }, summary: 'New' } });
+    expect(text).toBe('Updated GUM-12: Priority, summary');
   });
 
   it('issue_update rejects a field missing from the edit screen', async () => {

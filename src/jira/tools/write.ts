@@ -31,7 +31,7 @@ const issueCreate = defineTool({
   },
   async run(args, rt) {
     const srt = rt.resolve(args.site === undefined ? {} : { site: args.site });
-    const project = args.project?.trim() || srt.site.defaultJiraProject;
+    const project = (args.project?.trim() || srt.site.defaultJiraProject)?.toUpperCase();
     if (!project) throw new AtlasError(`Pass project; site ${srt.site.name} has no defaultJiraProject.`);
 
     const types = await projectIssueTypes(srt, project);
@@ -84,10 +84,11 @@ const issueUpdate = defineTool({
     // Editmeta lists exactly the fields editable on this issue, so it replaces create metadata here.
     const resolved = hasFields ? await resolveFields(srt, await editMeta(srt, key), input, key) : { fields: {}, names: [] };
     const fields: Record<string, unknown> = { ...resolved.fields };
-    const names = [...resolved.names];
+    // One name per field id; the plain summary and description arguments replace a same-id entry.
+    const names = new Map(Object.keys(resolved.fields).map((id, i) => [id, resolved.names[i] ?? id] as const));
     if (args.summary !== undefined) {
       fields.summary = args.summary;
-      names.push('summary');
+      names.set('summary', 'summary');
     }
 
     let note: string | null = null;
@@ -100,12 +101,12 @@ const issueUpdate = defineTool({
       const own = adfToMarkdown(issue.fields.description).placeholders.length;
       const dropped = [...tokens.values()].filter((p) => p.n <= own && !used.has(p.n));
       fields.description = doc;
-      names.push('description');
+      names.set('description', 'description');
       note = formatDropped(dropped, unknown);
     }
 
     await updateIssue(srt, key, fields);
-    return `Updated ${key}: ${names.join(', ')}${droppedSuffix(note)}`;
+    return `Updated ${key}: ${[...names.values()].join(', ')}${droppedSuffix(note)}`;
   },
 });
 

@@ -140,7 +140,8 @@ async function shapeValue(rt: SiteRuntime, field: FieldMeta, v: unknown): Promis
 
 /**
  * Maps `fields` keys (ids or display names, case-insensitive) to field ids and plain values to the API
- * shape; `label` names the screen in errors, e.g. `GUM Bug`. `names` are the matched display names.
+ * shape; `label` names the screen in errors, e.g. `GUM Bug`. `names` are the matched display names, one
+ * per field id in the same order as the keys of `fields`; a field given twice keeps the last value.
  * `rt` is only handed to `findUser` for user values.
  */
 export async function resolveFields(
@@ -155,8 +156,10 @@ export async function resolveFields(
     const wanted = key.trim().toLowerCase();
     const field = meta.find((f) => f.id.toLowerCase() === wanted) ?? meta.find((f) => f.name.toLowerCase() === wanted);
     if (field === undefined) throw new AtlasError(`Field "${key.trim()}" is not available for ${label}.`);
+    // Without the token map an existing description would lose its media, mentions and panels silently.
+    if (field.id === 'description') throw new AtlasError('Pass description as its own parameter.');
+    if (!(field.id in fields)) names.push(field.name);
     fields[field.id] = await shapeValue(rt, field, value);
-    names.push(field.name);
   }
   return { fields, names };
 }
