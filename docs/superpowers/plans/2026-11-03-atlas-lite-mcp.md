@@ -40,7 +40,7 @@ Atlassian endpoint shapes (checked against the published OpenAPI specs on 2026-1
 
 ## Global Constraints
 
-- Work only inside `/Users/andrijaperic/development/atlas-lite-mcp`. Branch `main` is the only long-lived branch; every task commits directly on `main`.
+- Work only inside `/Users/andrijaperic/development/atlas-lite-mcp`. Work happens on short-lived branch `v0.1`, merged fast-forward into `main` before Task 20; `main` is the only long-lived branch.
 - Node 22 locally; `package.json` `"engines": { "node": ">=20" }`; `"type": "module"`; TypeScript `strict`, `module`/`moduleResolution` `NodeNext`; relative imports end in `.js`.
 - Dependencies are added with exact versions (`pnpm add -E`), the versions in the table above.
 - No em-dashes or en-dashes anywhere: code, comments, README, tool descriptions, commit messages. Use `->` or a plain hyphen. Enforced by `test/hygiene.test.ts`.
@@ -50,10 +50,12 @@ Atlassian endpoint shapes (checked against the published OpenAPI specs on 2026-1
 - Secrets only via env variables or `~/.config/atlas-lite-mcp/sites.json` (overridable with `ATLAS_MCP_CONFIG`); never in the repo, fixtures or tests (tests use fake tokens such as `tok-SECRET-123`).
 - No delete tools and no DELETE HTTP calls anywhere, test code included; the HTTP method type is `'GET' | 'POST' | 'PUT'`.
 - Total `tools/list` payload under 3,000 tokens, measured as `JSON.stringify(tools).length / 4`, asserted `< 12000` characters (Task 16).
-- Unit tests never hit the network: `test/setup/no-network.ts` replaces global `fetch` with a thrower; code takes `fetch` by injection.
+- Unit tests never hit the network: `test/setup/no-network.ts` replaces global `fetch` with a thrower (it does not stub `fetch` when `ATLAS_ALLOW_NETWORK=1`); code takes `fetch` by injection. `pnpm test` runs unit tests only and excludes `test/smoke/**`; the live smoke test runs only through `pnpm test:smoke` (Task 18).
+- `tsconfig.json` keeps `noUncheckedIndexedAccess` and typechecks `test/`. Test snippets in this plan are illustrative: write them type-safe (guards or non-null assertions such as `calls[0]!`) so `pnpm typecheck` passes.
 - Limits from the spec: 429 waits honour `Retry-After`, cap 60 s per wait, at most 3 retries; request timeout 30 s; `page_search` limit default 10; `issue_search` limit default 20; required-field allowed values truncated to 10.
-- Responses are plain text, under roughly 20 lines by default; errors are one sentence with the fix, returned as tool results with `isError: true`.
-- Every Confluence write's version message is `atlas-lite-mcp <tool_name>`.
+- Responses are plain text, under roughly 20 lines by default; errors are one sentence with the fix (a second short sentence that states the fix is allowed), returned as tool results with `isError: true`.
+- Every Confluence page update (PUT) carries the version message `atlas-lite-mcp <tool_name>`. Confluence v2 `POST /pages` and `POST /footer-comments` take no version message.
+- Ambiguous heading, row and column matches list the matching candidates (up to 5, then `(and N more)`); missing ones list the available names as the tests show.
 
 ## Review Focus
 
@@ -68,47 +70,48 @@ Atlassian endpoint shapes (checked against the published OpenAPI specs on 2026-1
 ## File structure
 
 ```
-package.json, pnpm-lock.yaml, tsconfig.json, tsconfig.build.json, vitest.config.ts, .gitignore, README.md, LICENSE
+package.json, pnpm-lock.yaml, tsconfig.json, tsconfig.build.json, vitest.config.ts, vitest.smoke.config.ts, .gitignore, README.md, LICENSE
 src/index.ts                       bin entry: init | --version | --help | stdio server
 src/server.ts                      createServer(rt): McpServer with all modules
 src/core/errors.ts                 AtlasError
 src/core/log.ts                    log(line) -> stderr
-src/core/config.ts                 loadConfig
+src/core/config.ts                 loadConfig, configPath, defaultConfigDeps
 src/core/url.ts                    parsePageRef, parseIssueRef
 src/core/sites.ts                  resolveSite
-src/core/http.ts                   createHttpClient (auth, base URL, retry, error mapping)
+src/core/http.ts                   createHttpClient, baseUrlFor (auth, base URL, retry, error mapping)
 src/core/runtime.ts                createRuntime, Runtime, SiteRuntime
-src/core/tools.ts                  ToolDef, ProductModule, defineTool, executeTool, registerModules
-src/core/format.ts                 mdTable, versionLine, plural
-src/core/placeholders.ts           Placeholder, TOKEN_RE, tokenText, formatDropped, PlaceholderStore
-src/core/sitesTool.ts              sites_list
+src/core/tools.ts                  ToolDef, ProductModule, defineTool, siteParam, executeTool, registerModules
+src/core/format.ts                 plural (Task 5), mdTable, versionLine (Task 10)
+src/core/placeholders.ts           Placeholder, TOKEN_RE, tokenText, formatDropped, PlaceholderStore<T extends Placeholder>
+src/core/query.ts                  splitOrderBy (quote-aware ORDER BY split, shared by buildCql and buildJql)
+src/core/sitesTool.ts              sitesTool (sites_list), coreModule
 src/markdown/parse.ts              parseMarkdown (mdast + GFM)
-src/confluence/storage/dom.ts      parseStorage, textOf, innerRange, openTag, escapeXml
+src/confluence/storage/dom.ts      parseStorage, textOf, openTagEnd, innerRange, openTag, escapeXml
 src/confluence/storage/edit.ts     findReplace, assertWellFormed
-src/confluence/storage/placeholders.ts  collectStoragePlaceholders
-src/confluence/storage/sections.ts listHeadings, findSection, outline
+src/confluence/storage/placeholders.ts  StoragePlaceholder, collectStoragePlaceholders
+src/confluence/storage/sections.ts listHeadings, findSection, outline, rowCount
 src/confluence/storage/tables.ts   listTables, selectTable, updateCell, addRow
 src/confluence/storage/restore.ts  restoreStorageTokens
 src/confluence/storage/rewrite.ts  replaceSection, appendMarkdown
 src/confluence/convert/toMarkdown.ts    storageToMarkdown
 src/confluence/convert/fromMarkdown.ts  markdownToStorage
-src/confluence/api.ts              getPage, putPage, createPage, spaceIdForKey, spaceKeyForId, searchPages, addFooterComment
+src/confluence/api.ts              getPage, putPage, createPage, spaceIdForKey, spaceKeyForId, searchPages, addFooterComment (all take rt: SiteRuntime)
 src/confluence/write.ts            writePage (409 retry)
-src/confluence/tools/pages.ts      page_get, page_edit, page_update_section, page_append
-src/confluence/tools/publish.ts    page_create, page_search, page_comment
+src/confluence/tools/pages.ts      page_get, page_edit, page_update_section, page_append, pageTarget
+src/confluence/tools/publish.ts    page_create, page_search, page_comment, buildCql
 src/confluence/tools/tables.ts     table_get, table_update, table_add_row
 src/confluence/module.ts           confluenceModule
-src/jira/adf/toMarkdown.ts         adfToMarkdown
+src/jira/adf/toMarkdown.ts         AdfNode, AdfDoc, AdfPlaceholder, adfToMarkdown
 src/jira/adf/fromMarkdown.ts       markdownToAdf
-src/jira/api.ts                    issue/search/transition/comment/meta calls
+src/jira/api.ts                    getIssue, searchIssues, listFields, getTransitions, doTransition, addComment, projectIssueTypes, createMeta, editMeta, createIssue, updateIssue (all take rt: SiteRuntime)
 src/jira/jql.ts                    buildJql, isJql, quote
 src/jira/users.ts                  findUser
-src/jira/fields.ts                 normalizeMeta, resolveFields, missingRequired, formatMissing, displayValue
+src/jira/fields.ts                 normalizeCreateMeta, normalizeEditMeta, resolveFields, missingRequired, formatMissing, displayValue (pure logic, no HTTP calls of its own)
 src/jira/tools/read.ts             issue_get, issue_search, issue_transition, issue_comment
 src/jira/tools/write.ts            issue_create, issue_update
 src/jira/module.ts                 jiraModule
 src/cli/init.ts                    runInit, createPrompter
-test/...                           mirrors src; test/fixtures/, test/helpers/, test/setup/, test/smoke/
+test/...                           mirrors src; test/fixtures/, test/helpers/, test/setup/, test/smoke/ (smoke runs only via vitest.smoke.config.ts)
 ```
 
 ---
@@ -122,7 +125,7 @@ test/...                           mirrors src; test/fixtures/, test/helpers/, t
 
 **Interfaces:**
 - Produces:
-  - `class AtlasError extends Error { constructor(message: string, opts?: { status?: number; retryable?: boolean }); status?: number }`
+  - `class AtlasError extends Error { constructor(message: string, opts?: { status?: number }); status?: number }`
   - `log(line: string): void` (writes `line + "\n"` to stderr)
   - `type TokenType = 'classic' | 'scoped'`
   - `interface Site { name: string; baseUrl: string; host: string; email: string; apiToken: string; tokenType: TokenType; defaultJiraProject?: string; defaultConfluenceSpace?: string; cloudId?: string; unavailable?: string }`
@@ -130,15 +133,16 @@ test/...                           mirrors src; test/fixtures/, test/helpers/, t
   - `interface ConfigDeps { env: Record<string, string | undefined>; home: string; readFile(path: string): string | undefined; fileMode(path: string): number | undefined; warn(line: string): void }`
   - `loadConfig(deps: ConfigDeps): LoadedConfig` (throws `AtlasError` on unparsable or invalid files)
   - `defaultConfigDeps(): ConfigDeps` (real fs, `os.homedir()`, `process.env`, `log`)
+  - `configPath(env: NodeJS.ProcessEnv, home: string): string` (`env.ATLAS_MCP_CONFIG` when set, else `<home>/.config/atlas-lite-mcp/sites.json`; the only path rule, used by `loadConfig` and by `init` in Task 17)
 
 - [ ] **Step 1: Confirm the repo state**
 
 Run: `git -C /Users/andrijaperic/development/atlas-lite-mcp branch --show-current && ls`
-Expected: `main` and only `docs`.
+Expected: `v0.1` (the short-lived work branch the controller created from `main`) and only `docs`.
 
 - [ ] **Step 2: Create the package and install pinned dependencies**
 
-`package.json` fields: `name: "atlas-lite-mcp"`, `version: "0.1.0"`, `description: "Fast local MCP server for Jira Cloud and Confluence Cloud with surgical, lossless page edits."`, `type: "module"`, `license: "MIT"`, `author: "Andrija Peric"`, `engines: { node: ">=20" }`, `packageManager: "pnpm@9.15.0"`, `repository: { type: "git", url: "git+https://github.com/pandalabs-dev/atlas-lite-mcp.git" }`, `keywords: ["mcp", "jira", "confluence", "atlassian", "model-context-protocol"]`, scripts `build: "tsc -p tsconfig.build.json"`, `typecheck: "tsc -p tsconfig.json --noEmit"`, `test: "vitest run"`, `test:smoke: "ATLAS_ALLOW_NETWORK=1 vitest run test/smoke"`. (`bin` and `files` come in Task 19.)
+`package.json` fields: `name: "atlas-lite-mcp"`, `version: "0.1.0"`, `description: "Fast local MCP server for Jira Cloud and Confluence Cloud with surgical, lossless page edits."`, `type: "module"`, `license: "MIT"`, `author: "Andrija Peric"`, `engines: { node: ">=20" }`, `packageManager: "pnpm@9.15.0"`, `repository: { type: "git", url: "git+https://github.com/pandalabs-dev/atlas-lite-mcp.git" }`, `keywords: ["mcp", "jira", "confluence", "atlassian", "model-context-protocol"]`, scripts `build: "tsc -p tsconfig.build.json"`, `typecheck: "tsc -p tsconfig.json --noEmit"`, `test: "vitest run"` (unit tests only), `"test:smoke": "vitest run --config vitest.smoke.config.ts"`. (`bin` and `files` come in Task 19; `vitest.smoke.config.ts` comes in Task 18.)
 
 ```bash
 pnpm add -E @modelcontextprotocol/sdk@1.32.2 zod@4.6.7 htmlparser2@12.0.0 domhandler@6.0.1 entities@8.1.0 fast-xml-parser@5.12.0 mdast-util-from-markdown@2.1.0 micromark-extension-gfm@3.0.0 mdast-util-gfm@3.1.0
@@ -147,14 +151,14 @@ pnpm add -D -E typescript@6.0.3 vitest@5.1.0 @types/node@22.20.5 @types/mdast@4.
 
 - [ ] **Step 3: Write config files**
 
-`tsconfig.json`: `target ES2023`, `module NodeNext`, `moduleResolution NodeNext`, `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `types: ["node"]`, `skipLibCheck`, `noEmit`, include `src`, `test`, `vitest.config.ts`. `tsconfig.build.json` extends it with `noEmit: false`, `rootDir: "src"`, `outDir: "dist"`, include `src` only, no source maps, no declarations. `vitest.config.ts`: `include: ['test/**/*.test.ts']`, `setupFiles: ['test/setup/no-network.ts']`, `environment: 'node'`. `.gitignore`: `node_modules/`, `dist/`, `coverage/`, `*.tgz`, `.env*`.
+`tsconfig.json`: `target ES2023`, `module NodeNext`, `moduleResolution NodeNext`, `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `types: ["node"]`, `skipLibCheck`, `noEmit`, include `src`, `test`, `vitest*.config.ts`. `tsconfig.build.json` extends it with `noEmit: false`, `rootDir: "src"`, `outDir: "dist"`, include `src` only, no source maps, no declarations. `vitest.config.ts` (the `pnpm test` config, unit tests only): `include: ['test/**/*.test.ts']`, `exclude: [...configDefaults.exclude, 'test/smoke/**']` (`configDefaults` from `vitest/config`), `setupFiles: ['test/setup/no-network.ts']`, `environment: 'node'`. `pnpm test` never collects `test/smoke/**`; Task 18 adds `vitest.smoke.config.ts` for it. `.gitignore`: `node_modules/`, `dist/`, `coverage/`, `*.tgz`, `.env*`.
 
-`test/setup/no-network.ts`: unless `process.env.ATLAS_ALLOW_NETWORK === '1'`, `vi.stubGlobal('fetch', () => { throw new Error('Network disabled in unit tests; inject a mock fetch.') })`.
+`test/setup/no-network.ts` (setup file of both vitest configs): unless `process.env.ATLAS_ALLOW_NETWORK === '1'`, `vi.stubGlobal('fetch', () => { throw new Error('Network disabled in unit tests; inject a mock fetch.') })`. With `ATLAS_ALLOW_NETWORK=1` it does not stub `fetch`; only the live smoke run (Task 18) sets it.
 
 - [ ] **Step 4: Write the failing tests**
 
 ```ts
-// test/core/config.test.ts  (deps built by a local helper: fake env, home '/h', in-memory files and modes, warn spy)
+// test/core/config.test.ts  (deps built by a local helper: fake env, home '/h', in-memory files, warn spy; the `mode` option sets the file mode, default 0o600, and mode-sensitive tests pass it explicitly)
 it('loads the file named by ATLAS_MCP_CONFIG and expands ${VAR} tokens', () => {
   // file: one site gumperr, baseUrl 'https://gumperr.atlassian.net/', apiToken '${GUMPERR_ATLASSIAN_TOKEN}'
   const cfg = loadConfig(deps({ env: { ATLAS_MCP_CONFIG: '/x/sites.json', GUMPERR_ATLASSIAN_TOKEN: 'tok-SECRET-123' } }));
@@ -162,6 +166,10 @@ it('loads the file named by ATLAS_MCP_CONFIG and expands ${VAR} tokens', () => {
   expect(cfg.sites[0]).toMatchObject({ name: 'gumperr', baseUrl: 'https://gumperr.atlassian.net', host: 'gumperr.atlassian.net', apiToken: 'tok-SECRET-123', tokenType: 'classic' });
 });
 it('defaults to ~/.config/atlas-lite-mcp/sites.json', () => { expect(loadConfig(deps({ files: { '/h/.config/atlas-lite-mcp/sites.json': validFile } })).path).toBe('/h/.config/atlas-lite-mcp/sites.json'); });
+it('configPath honours ATLAS_MCP_CONFIG, else the default path', () => {
+  expect(configPath({ ATLAS_MCP_CONFIG: '/x/sites.json' }, '/h')).toBe('/x/sites.json');
+  expect(configPath({}, '/h')).toBe('/h/.config/atlas-lite-mcp/sites.json');
+});
 it('marks a site unavailable when its env reference is unset and keeps the others', () => {
   const cfg = loadConfig(deps({ file: twoSites, env: { QINT_TOKEN: 'x' } }));
   expect(cfg.sites.find(s => s.name === 'gumperr')?.unavailable).toBe('env GUMPERR_ATLASSIAN_TOKEN is not set');
@@ -181,7 +189,7 @@ it('builds one site from ATLASSIAN_* env when no file exists', () => {
   expect(cfg.sites).toEqual([expect.objectContaining({ name: 'acme', host: 'acme.atlassian.net', tokenType: 'scoped' })]);
 });
 it('prefers the file over env and says so once on stderr', () => {
-  const d = deps({ file: validFile, env: { ATLASSIAN_URL: 'https://acme.atlassian.net', ATLASSIAN_EMAIL: 'a@b.c', ATLASSIAN_TOKEN: 't' } });
+  const d = deps({ file: validFile, mode: 0o600, env: { ATLASSIAN_URL: 'https://acme.atlassian.net', ATLASSIAN_EMAIL: 'a@b.c', ATLASSIAN_TOKEN: 't' } });
   expect(loadConfig(d).sites.map(s => s.name)).toEqual(['gumperr']);
   expect(d.warn).toHaveBeenCalledTimes(1);
   expect(d.warn).toHaveBeenCalledWith('Using /h/.config/atlas-lite-mcp/sites.json; ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN are ignored.');
@@ -208,7 +216,7 @@ Expected: FAIL, cannot resolve `../../src/core/config.js`.
 
 - [ ] **Step 6: Implement `errors.ts`, `log.ts`, `config.ts`**
 
-Validate with a zod schema (`name`, `baseUrl` URL, `email`, `apiToken` non-empty strings; optional `tokenType` enum default `classic`, `defaultJiraProject`, `defaultConfluenceSpace`, `cloudId`). Format zod issues as `sites[0].email is required` style (path joined, never the input value). `${NAME}` expansion applies only when the whole `apiToken` string matches `^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$`. `baseUrl` is normalised to `origin` (no trailing slash, no path). Env-only site name is the first DNS label of the URL host. Permission warning when `mode & 0o077` is non-zero.
+Validate with a zod schema (`name`, `baseUrl` URL, `email`, `apiToken` non-empty strings; optional `tokenType` enum default `classic`, `defaultJiraProject`, `defaultConfluenceSpace`, `cloudId`). Format zod issues as `sites[0].email is required` style (path joined, never the input value). `${NAME}` expansion applies only when the whole `apiToken` string matches `^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$`. `baseUrl` is normalised to `origin` (no trailing slash, no path). Env-only site name is the first DNS label of the URL host. Permission warning on stderr when `mode & 0o077` is non-zero (any group or other bit). `loadConfig` takes its path from `configPath(deps.env, deps.home)`.
 
 - [ ] **Step 7: Run tests and typecheck**
 
@@ -316,7 +324,7 @@ git commit -m "feat: parse page and issue references and resolve sites"
   - `interface HttpDeps { fetch?: typeof fetch; sleep?: (ms: number) => Promise<void>; timeoutMs?: number }`
   - `createHttpClient(site: Site, deps?: HttpDeps): HttpClient`
   - `baseUrlFor(site: Site, product: Product, cloudId?: string): string`
-  - Test helper `mockFetch(routes: Route[]): { fetch: typeof fetch; calls: Call[] }` where `Route = { method: string; path: string | RegExp; status?: number; json?: unknown; headers?: Record<string, string>; times?: number; reply?: (call: Call) => { status?: number; json?: unknown; headers?: Record<string, string> } }`, `Call = { method: string; url: string; headers: Record<string, string>; body: unknown }`; routes match on method plus URL pathname (string = exact pathname, RegExp = tested against pathname + search); a route with `times` is consumed in order; unmatched calls throw.
+  - Test helper `mockFetch(routes: Route[]): { fetch: typeof fetch; calls: Call[] }` where `Route = { method: string; path: string | RegExp; status?: number; json?: unknown; headers?: Record<string, string>; times?: number; reply?: (call: Call) => { status?: number; json?: unknown; headers?: Record<string, string> } }`, `Call = { method: string; url: string; headers: Record<string, string>; body: any }` (`body` is the parsed JSON request body, `undefined` when none, typed `any` because this is a test helper so tests read its properties directly; header names lower-cased); routes match on method plus URL pathname (string = exact pathname, RegExp = tested against pathname + search); a route with `times` is consumed in order; unmatched calls throw.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -325,9 +333,9 @@ git commit -m "feat: parse page and issue references and resolve sites"
 it('sends Basic auth and JSON headers to the site URL for classic tokens', async () => {
   const m = mockFetch([{ method: 'GET', path: '/rest/api/3/myself', json: { accountId: '1' } }]);
   await createHttpClient(gumperr, { fetch: m.fetch }).request('jira', 'GET', '/rest/api/3/myself');
-  expect(m.calls[0].url).toBe('https://gumperr.atlassian.net/rest/api/3/myself');
-  expect(m.calls[0].headers.authorization).toBe('Basic ' + Buffer.from('a@b.c:tok-SECRET-123').toString('base64'));
-  expect(m.calls[0].headers.accept).toBe('application/json');
+  expect(m.calls[0]!.url).toBe('https://gumperr.atlassian.net/rest/api/3/myself');
+  expect(m.calls[0]!.headers.authorization).toBe('Basic ' + Buffer.from('a@b.c:tok-SECRET-123').toString('base64'));
+  expect(m.calls[0]!.headers.accept).toBe('application/json');
 });
 it('uses api.atlassian.com with a cloudId resolved once from tenant_info for scoped tokens', async () => {
   const m = mockFetch([
@@ -339,9 +347,13 @@ it('uses api.atlassian.com with a cloudId resolved once from tenant_info for sco
   await c.request('jira', 'GET', '/rest/api/3/myself');
   await c.request('confluence', 'GET', '/wiki/api/v2/spaces');
   expect(m.calls.filter(x => x.url.endsWith('/_edge/tenant_info'))).toHaveLength(1);
-  expect(m.calls[0].headers.authorization).toBeUndefined();
+  expect(m.calls[0]!.headers.authorization).toBeUndefined();
 });
-it('skips tenant_info when cloudId is configured', async () => { /* site.cloudId 'c-9' -> first call is https://api.atlassian.com/ex/jira/c-9/... */ });
+it('skips tenant_info when cloudId is configured', async () => {
+  const m = mockFetch([{ method: 'GET', path: '/ex/jira/c-9/rest/api/3/myself', json: {} }]);
+  await createHttpClient({ ...gumperr, tokenType: 'scoped', cloudId: 'c-9' }, { fetch: m.fetch }).request('jira', 'GET', '/rest/api/3/myself');
+  expect(m.calls.map(c => c.url)).toEqual(['https://api.atlassian.com/ex/jira/c-9/rest/api/3/myself']);
+});
 it('retries 429 honouring Retry-After, capped at 60 s, and succeeds', async () => {
   const m = mockFetch([
     { method: 'GET', path: '/rest/api/3/myself', status: 429, headers: { 'retry-after': '120' }, times: 1 },
@@ -368,7 +380,14 @@ it('surfaces the first Atlassian error message for other 4xx', async () => {
 it('keeps the status on errors so callers can react to 409', async () => { await expect(req409()).rejects.toMatchObject({ status: 409 }); });
 it('times out after 30 s', async () => { /* fetch that rejects with DOMException name TimeoutError */ await expect(r).rejects.toThrow('Request to site gumperr timed out after 30 s.'); });
 it('never includes the token in any error message', async () => { for (const p of [req401(), req403(), req400(), reqNetwork()]) await p.catch(e => expect(e.message).not.toContain('tok-SECRET-123')); });
-it('encodes query params and JSON bodies, returns undefined for 204', async () => { /* PUT with body -> content-type application/json, body JSON; 204 -> undefined */ });
+it('encodes query params and JSON bodies, returns undefined for 204', async () => {
+  const m = mockFetch([{ method: 'PUT', path: '/rest/api/3/issue/GUM-1', status: 204 }]);
+  const r = await createHttpClient(gumperr, { fetch: m.fetch }).request('jira', 'PUT', '/rest/api/3/issue/GUM-1', { query: { a: 'x y', b: 2, c: undefined }, body: { fields: { summary: 'S' } } });
+  expect(r).toBeUndefined();
+  expect(m.calls[0]!.url).toBe('https://gumperr.atlassian.net/rest/api/3/issue/GUM-1?a=x+y&b=2');
+  expect(m.calls[0]!.headers['content-type']).toBe('application/json');
+  expect(m.calls[0]!.body).toEqual({ fields: { summary: 'S' } });
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -378,7 +397,7 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 3: Implement `createHttpClient` and `baseUrlFor`**
 
-`baseUrlFor`: classic -> `site.baseUrl`; scoped -> `https://api.atlassian.com/ex/${product}/${cloudId}`; paths always carry their full `/rest/...` or `/wiki/...` prefix (the one place to change if build-time verification shows scoped Confluence drops `/wiki`). Timeout via `AbortSignal.timeout(deps.timeoutMs ?? 30000)`. `Retry-After` is seconds or an HTTP date; absent -> `2 ** attempt` seconds; each wait `Math.min(ms, 60000)`. 5xx -> `Site gumperr returned 502; try again shortly.` Network errors -> `Could not reach site gumperr (<code or message>).` First Atlassian message: `errorMessages[0]`, else first value of `errors` object, else `errors[0].title` (Confluence v2), else `message`. `User-Agent: atlas-lite-mcp`.
+`baseUrlFor`: classic -> `site.baseUrl`; scoped -> `https://api.atlassian.com/ex/${product}/${cloudId}`; paths always carry their full `/rest/...` or `/wiki/...` prefix (the one place to change if build-time verification shows scoped Confluence drops `/wiki`). Timeout via `AbortSignal.timeout(deps.timeoutMs ?? 30000)`. `Retry-After` is seconds or an HTTP date; absent -> `2 ** attempt` seconds; each wait `Math.min(ms, 60000)`. 5xx -> `Site gumperr returned 502; try again shortly.` Network errors -> `Could not reach site gumperr (<code or message>).` First Atlassian message: `errorMessages[0]`, else first value of `errors` object, else `errors[0].title` (Confluence v2), else `message`. `User-Agent: atlas-lite-mcp`. Query strings are built with `URLSearchParams` (`undefined` values skipped); a request with a body sends it as JSON with `content-type: application/json`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -414,7 +433,7 @@ git commit -m "feat: add per-site HTTP client with retries and clear errors"
 
 - [ ] **Step 1: Write the fixture `test/fixtures/confluence/rich-page.xml`**
 
-Used by Tasks 4 to 13. Exact content (one element per line):
+Used by Tasks 4 to 13. Synthetic, but modelled on real storage structures (`ac:structured-macro` with `ac:parameter` and `ac:rich-text-body`, `ac:image`/`ri:attachment`, `ac:layout`/`ac:layout-section`/`ac:layout-cell`, tables with `th`/`td`, `&nbsp;`, CDATA code bodies); real pages are covered by the Task 18 smoke test. Exact content (one element per line):
 
 ```xml
 <h1>Overview</h1>
@@ -440,11 +459,11 @@ Used by Tasks 4 to 13. Exact content (one element per line):
 // test/confluence/storage/dom.test.ts
 it('textOf decodes entities and nbsp and collapses whitespace', () => {
   const doc = parseStorage('<p> R&amp;D&nbsp;team\n x </p>');
-  expect(textOf(doc.children[0])).toBe('R&D team x');
+  expect(textOf(doc.children[0]!)).toBe('R&D team x');
 });
 it('innerRange and openTag respect quotes containing >', () => {
   const src = '<p title="a>b">x</p><p/>';
-  const [p1, p2] = parseStorage(src).children as Element[];
+  const [p1, p2] = parseStorage(src).children as [Element, Element];
   expect(src.slice(innerRange(src, p1)!.start, innerRange(src, p1)!.end)).toBe('x');
   expect(openTag(src, p1)).toBe('<p title="a>b">');
   expect(innerRange(src, p2)).toBeNull();
@@ -467,7 +486,16 @@ it('errors on zero matches with the storage hint', () => {
 it('errors on several matches without all, showing the count and up to three contexts', () => {
   expect(() => findReplace(page, '<td><p>1', 'x', false)).toThrow(/^Found 2 matches; pass all: true or use a longer find text\. Matches: "/);
 });
-it('replaces all matches with all: true', () => { expect(findReplace(page, 'ac:schema-version="1"', 'ac:schema-version="1"', true).count).toBe(5); });
+it('replaces a single match with all: true and reports the count', () => {
+  const r = findReplace(page, '<p>Hosting</p>', '<p>Web hosting</p>', true);
+  expect(r.count).toBe(1);
+  expect(r.storage).toBe(page.replace('<p>Hosting</p>', '<p>Web hosting</p>'));
+});
+it('replaces every match with all: true', () => {
+  const r = findReplace(page, 'ac:schema-version="1"', 'ac:schema-version="2"', true);
+  expect(r.count).toBe(5);
+  expect(r.storage).toBe(page.split('ac:schema-version="1"').join('ac:schema-version="2"'));
+});
 it('falls back to the XML-escaped form and escapes replace the same way', () => {
   const r = findReplace(page, 'R&D', 'R&D & Ops', false);
   expect(r.storage).toContain('for R&amp;D &amp; Ops&nbsp;team');
@@ -506,18 +534,19 @@ git commit -m "feat: add storage find and replace with well-formedness check"
 ### Task 5: Placeholders and storage to markdown
 
 **Files:**
-- Create: `src/core/placeholders.ts`, `src/confluence/storage/placeholders.ts`, `src/confluence/convert/toMarkdown.ts`
-- Test: `test/core/placeholders.test.ts`, `test/confluence/convert/toMarkdown.test.ts`
+- Create: `src/core/placeholders.ts`, `src/core/format.ts`, `src/confluence/storage/placeholders.ts`, `src/confluence/convert/toMarkdown.ts`
+- Test: `test/core/placeholders.test.ts`, `test/core/format.test.ts`, `test/confluence/convert/toMarkdown.test.ts`
 
 **Interfaces:**
 - Consumes: `parseStorage`, `textOf` (Task 4)
 - Produces:
-  - `interface Placeholder<T = unknown> { n: number; hint: string; original: T; block: boolean }`
-  - `interface StoragePlaceholder extends Placeholder<string> { start: number; end: number }` (`end` exclusive)
+  - `interface Placeholder<T = unknown> { n: number; hint: string; original: T; block: boolean }` (`src/core/placeholders.ts`)
+  - `interface StoragePlaceholder extends Placeholder<string> { start: number; end: number }` (`end` exclusive; lives in `src/confluence/storage/placeholders.ts`, core never imports it)
   - `const TOKEN_RE: RegExp` = `/\{\{atlas:(\d+)\}\}(?: \[[^\]\n]*\])?/g`
   - `tokenText(p: Placeholder): string` -> `{{atlas:3}} [macro: toc]`
-  - `formatDropped(dropped: Placeholder[], unknown: number[]): string | null` -> `Dropped: 2 items: [macro: toc], [image: screenshot.png]` (`1 item`, unknown as `{{atlas:9}} [unknown token]`), null when both empty
-  - `class PlaceholderStore<T> { constructor(maxEntries = 100); getOrBuild(key: string, version: string, build: () => Placeholder<T>[]): Map<number, Placeholder<T>> }` (rebuilds when the stored version differs; evicts oldest key beyond max)
+  - `plural(n: number, word: string): string` in `src/core/format.ts` (`1 item`, `2 items`; Task 10 adds `mdTable` and `versionLine` to this file)
+  - `formatDropped(dropped: Placeholder[], unknown: number[]): string | null` -> `Dropped: 2 items: [macro: toc], [image: screenshot.png]` (count via `plural(n, 'item')`, unknown as `{{atlas:9}} [unknown token]`), null when both empty
+  - `class PlaceholderStore<T extends Placeholder> { constructor(maxEntries = 100); getOrBuild(key: string, version: string, build: () => T[]): Map<number, T> }` (rebuilds when the stored version differs; evicts oldest key beyond max; generic so Confluence stores `StoragePlaceholder` and Jira stores `AdfPlaceholder` without core importing either)
   - `collectStoragePlaceholders(storage: string, doc: Document): StoragePlaceholder[]`
   - `storageToMarkdown(storage: string, opts?: { within?: { start: number; end: number } }): { markdown: string; placeholders: StoragePlaceholder[] }` (placeholders always cover the whole body)
 
@@ -531,9 +560,20 @@ it('formats dropped lines', () => {
   expect(formatDropped([], [])).toBeNull();
 });
 it('PlaceholderStore rebuilds on version change and caches otherwise', () => {
-  const s = new PlaceholderStore<string>(); const build = vi.fn(() => [p(1, 'x')]);
-  s.getOrBuild('gumperr:page:1', '13', build); s.getOrBuild('gumperr:page:1', '13', build); s.getOrBuild('gumperr:page:1', '14', build);
+  const s = new PlaceholderStore<Placeholder<string>>(); const build = vi.fn(() => [p(1, 'x')]);
+  const key = 'confluence:page:gumperr:1';
+  s.getOrBuild(key, '13', build); s.getOrBuild(key, '13', build);
+  expect(s.getOrBuild(key, '14', build).get(1)?.hint).toBe('x');
   expect(build).toHaveBeenCalledTimes(2);
+});
+```
+
+```ts
+// test/core/format.test.ts  (Task 10 adds mdTable and versionLine cases)
+it('pluralises', () => {
+  expect(plural(1, 'item')).toBe('1 item');
+  expect(plural(2, 'item')).toBe('2 items');
+  expect(plural(0, 'item')).toBe('0 items');
 });
 ```
 
@@ -545,7 +585,7 @@ it('numbers placeholders over the whole body in document order', () => {
     [1, 'macro: toc', true], [2, 'status: ON TRACK', false], [3, 'emoticon: smile', false],
     [4, 'panel: info, Budget is frozen.', true], [5, 'status: TBD', false], [6, 'image: ana.png', true], [7, 'tasks: 1', true],
   ]);
-  expect(page.slice(placeholders[0].start, placeholders[0].end)).toBe('<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="m-toc"/>');
+  expect(page.slice(placeholders[0]!.start, placeholders[0]!.end)).toBe('<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="m-toc"/>');
 });
 it('renders standard elements and tokens', () => {
   const md = storageToMarkdown(page).markdown;
@@ -572,26 +612,26 @@ it('escapes pipes inside table cells and markdown specials in text', () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm vitest run test/core/placeholders.test.ts test/confluence/convert`
+Run: `pnpm vitest run test/core/placeholders.test.ts test/core/format.test.ts test/confluence/convert`
 Expected: FAIL, modules not found.
 
 - [ ] **Step 3: Implement placeholder collection and the markdown walker**
 
-Placeholder elements (outermost only, nested ones are inside the original): every `ac:structured-macro` / `ac:macro` except a `code` macro whose only parameter is `language` and that has `ac:plain-text-body`; `ac:image`, `ac:link`, `ac:emoticon`, `ac:task-list`, `ac:placeholder`, `ac:inline-comment-marker` (hint `comment`), `time`, `ri:*` outside the above, and any other `ac:*` element except the transparent layout trio. Hints: `macro: <name>`, `panel: <info|note|warning|tip|panel>, <first 30 chars of text>` for those macro names, `status: <title param>`, `image: <ri:filename or ri:value>`, `emoticon: <ac:name>`, `link: <ri:content-title or text>`, `tasks: <count>`, `date: <datetime>`, `<tag>` otherwise; strip `[`, `]` and newlines from hints. `block` is true when the element's parent is the document, a layout cell, `ac:rich-text-body`, `td`, `th`, `li` or `blockquote`.
+Placeholder elements (outermost only, nested ones are inside the original): every `ac:structured-macro` / `ac:macro` except a `code` macro whose only parameter is `language` and that has `ac:plain-text-body`; `ac:image`, `ac:link`, `ac:emoticon`, `ac:task-list`, `ac:placeholder`, `ac:inline-comment-marker` (hint `comment`), `time`, `ri:*` outside the above, and any other `ac:*` element except the transparent layout trio. Hints: `macro: <name>`, `panel: <info|note|warning|tip|panel>, <first 30 chars of text>` for those macro names, `status: <title param>`, `image: <ri:filename or ri:value>`, `emoticon: <ac:name>`, `link: <ri:content-title or text>`, `tasks: <count>`, `date: <datetime>`, `<tag>` otherwise; strip `[`, `]` and newlines from hints. Hints never contain URLs: a hint value that is a URL (for example an external image's `ri:value`) is reduced to its host (`image: example.com`). `block` is true when the element's parent is the document, a layout cell, `ac:rich-text-body`, `td`, `th`, `li` or `blockquote`.
 
 Layout elements (`ac:layout`, `ac:layout-section`, `ac:layout-cell`) are transparent containers in the markdown view: their children render, cells separated by a blank line, and the layout markup itself is never tokenised. This deviates on purpose from the spec's list in 6.7 ("layouts" as placeholders): tokenising a layout would hide the whole body of layout-based pages from `page_get`. Layout markup stays lossless because writes only splice inside sections that end at their containing cell (Task 6). Flag this in the Task 11 commit body.
 
-Range rendering: a node fully outside `within` is skipped, fully inside is rendered, partially overlapping (a container) is descended into. Element mapping: `h1..h6` -> `#` x level, `p` -> paragraph, `ul/ol/li` (nested lists indented two spaces), `strong/b` -> `**`, `em/i` -> `*`, `s/del` -> `~~`, `code` -> backticks, `a` -> `[text](href)`, `br` -> newline, `hr` -> `---`, `blockquote` -> `> `, `table` -> GFM table (first row is the header), `pre` -> fenced block, code macro -> fenced block with language, unknown HTML elements -> their children. Decode entities with `decodeHTML`; escape `\ * _ ` [ ]` in text runs and `|` in table cells; tokens and hints are emitted unescaped.
+Range rendering: a node fully outside `within` is skipped, fully inside is rendered, partially overlapping (a container) is descended into. Element mapping: `h1..h6` -> `#` x level, `p` -> paragraph, `ul/ol/li` (nested lists indented two spaces), `strong/b` -> `**`, `em/i` -> `*`, `s/del` -> `~~`, `code` -> backticks, `a` -> `[text](href)`, `br` -> newline, `hr` -> `---`, `blockquote` -> `> `, `table` -> GFM table (first row is the header), `pre` -> fenced block, code macro -> fenced block with language, unknown HTML elements -> their children. Decode entities with `decodeHTML`, then map `\u00a0` to a normal space and collapse whitespace runs to one space (the `textOf` normalisation) in every text run used for matching or markdown output, so `R&amp;D&nbsp;team` renders `R&D team`; CDATA code bodies and `pre` keep their text verbatim. Escape `\ * _ ` [ ]` in text runs and `|` in table cells; tokens and hints are emitted unescaped.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm vitest run test/core/placeholders.test.ts test/confluence/convert`
+Run: `pnpm vitest run test/core/placeholders.test.ts test/core/format.test.ts test/confluence/convert`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/placeholders.ts src/confluence/storage/placeholders.ts src/confluence/convert/toMarkdown.ts test/core/placeholders.test.ts test/confluence/convert/toMarkdown.test.ts
+git add src/core/placeholders.ts src/core/format.ts src/confluence/storage/placeholders.ts src/confluence/convert/toMarkdown.ts test/core/placeholders.test.ts test/core/format.test.ts test/confluence/convert/toMarkdown.test.ts
 git commit -m "feat: convert storage to markdown with placeholder tokens"
 ```
 
@@ -610,6 +650,7 @@ git commit -m "feat: convert storage to markdown with placeholder tokens"
   - `listHeadings(doc: Document): Heading[]` (document order, any depth)
   - `findSection(storage: string, doc: Document, heading: string): { heading: Heading; start: number; end: number }` (`start` just after the heading element, `end` exclusive)
   - `outline(storage: string): string`
+  - `rowCount(table: Element): number` (exported; counts the `tr` elements whose nearest `table` ancestor is `table`, header row included; the only row-counting rule, reused by Task 9)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -631,7 +672,11 @@ it('matches trimmed, case-insensitive, entity-decoded text', () => {
 it('lists candidates when missing or ambiguous', () => {
   expect(() => region('Nope')).toThrow('No heading "Nope". Headings: Overview, Budget, Notes, Team, Left, Right, Done.');
   const dup = '<h2>A</h2><p>1</p><h2>a</h2>';
-  expect(() => findSection(dup, parseStorage(dup), 'A')).toThrow('Heading "A" matches 2 headings; use page_edit or make the heading unique.');
+  expect(() => findSection(dup, parseStorage(dup), 'A')).toThrow('Heading "A" matches 2 headings: A, a; use page_edit or make the heading unique.');
+});
+it('rowCount counts only rows that belong to the table', () => {
+  const s = '<table><tbody><tr><td><table><tbody><tr><td>x</td></tr></tbody></table></td></tr><tr><td>y</td></tr></tbody></table>';
+  expect(rowCount(parseStorage(s).children[0] as Element)).toBe(2);
 });
 it('outlines headings and tables', () => {
   expect(outline(page)).toBe([
@@ -657,7 +702,9 @@ for (const sib of siblingsAfter) {
 return { start, end: parent is Document ? storage.length : innerRange(storage, parent)!.end };
 ```
 
-Outline: one line per heading `'  '.repeat(level - 1) + 'h' + level + ' ' + text`; each table is a line `[table N: R rows x C cols]` (rows include the header row; columns from the widest row) indented one level deeper than the most recent heading (no indent before the first heading). Count rows the same way as Task 9 (`tr` elements belonging to that table, not nested ones).
+Outline: one line per heading `'  '.repeat(level - 1) + 'h' + level + ' ' + text`; each table is a line `[table N: R rows x C cols]` (rows include the header row; columns from the widest row) indented one level deeper than the most recent heading (no indent before the first heading). Row counts come from `rowCount` (defined here and exported; Task 9 reuses it, so there is one counting rule).
+
+Errors: a missing heading lists every heading (as tested); an ambiguous heading lists the matching headings' texts, up to 5, then `(and N more)`, as in `Heading "A" matches 2 headings: A, a; use page_edit or make the heading unique.`
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -681,13 +728,14 @@ git commit -m "feat: locate page sections and build outlines"
 - Test: `test/confluence/convert/fromMarkdown.test.ts`, `test/confluence/storage/rewrite.test.ts`
 
 **Interfaces:**
-- Consumes: `storageToMarkdown`, `StoragePlaceholder`, `TOKEN_RE` (Task 5), `findSection` (Task 6), `escapeXml` (Task 4)
+- Consumes: `storageToMarkdown`, `StoragePlaceholder`, `TOKEN_RE`, `collectStoragePlaceholders` (Task 5), `findSection` (Task 6), `parseStorage`, `escapeXml`, `fixture` (Task 4)
 - Produces:
   - `parseMarkdown(md: string): Root` (mdast with GFM)
   - `markdownToStorage(md: string): string`
   - `restoreStorageTokens(storage: string, tokens: Map<number, StoragePlaceholder>): { storage: string; used: Set<number>; unknown: number[] }`
-  - `replaceSection(storage: string, heading: string, markdown: string): { storage: string; dropped: StoragePlaceholder[]; unknown: number[] }`
-  - `appendMarkdown(storage: string, markdown: string): { storage: string; unknown: number[] }`
+  - `replaceSection(storage: string, heading: string, markdown: string, placeholders: Map<number, StoragePlaceholder>): { storage: string; dropped: StoragePlaceholder[]; unknown: number[] }`
+  - `appendMarkdown(storage: string, markdown: string, placeholders: Map<number, StoragePlaceholder>): { storage: string; unknown: number[] }`
+  - `placeholders` is the page-wide map for this exact storage version: the tools (Task 11) take it from the runtime's placeholder store, which rebuilds it with `collectStoragePlaceholders` when the stored version differs from the current page version (spec 6.7)
 
 - [ ] **Step 1: Write the fixtures**
 
@@ -697,7 +745,7 @@ git commit -m "feat: locate page sections and build outlines"
 <h2>Gallery</h2><p>Intro text.</p><ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="abc"/><p>See <ac:image ac:width="400"><ri:attachment ri:filename="screenshot.png"/></ac:image> above.</p><ul><li><p>one</p></li><li><p>two <strong>bold</strong></p></li></ul><h2>Next</h2><p>Tail</p>
 ```
 
-`clean-section.xml`: storage exactly as `markdownToStorage` emits it for headings 1 to 3, a paragraph with `<strong>`, `<em>`, `<code>`, a link, a nested bullet list, an ordered list, a GFM table, and a `ts` fenced block (written by hand, used as the round-trip golden).
+`clean-section.xml`: storage exactly as `markdownToStorage` emits it for headings 1 to 3, a paragraph with `<strong>`, `<em>`, `<code>`, a link, a nested bullet list, an ordered list, a GFM table, and a `ts` fenced block (synthetic, written by hand but modelled on real storage structures, used as the round-trip golden; real pages are covered by the Task 18 smoke test).
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -725,34 +773,37 @@ it('round-trips text with &, < and | through storage and back', () => {
 ```ts
 // test/confluence/storage/rewrite.test.ts
 const page = fixture('confluence/placeholder-section.xml');
+const tokens = (s: string) => new Map(collectStoragePlaceholders(s, parseStorage(s)).map(p => [p.n, p] as const));
 it('shows the section as markdown with tokens', () => {
   const { start, end } = findSection(page, parseStorage(page), 'Gallery');
   expect(storageToMarkdown(page, { within: { start, end } }).markdown.trim()).toBe('Intro text.\n\n{{atlas:1}} [macro: toc]\n\nSee {{atlas:2}} [image: screenshot.png] above.\n\n- one\n- two **bold**');
 });
 it('writes the section back unchanged when tokens are kept (spec 6.11)', () => {
   const md = 'Intro text.\n\n{{atlas:1}} [macro: toc]\n\nSee {{atlas:2}} [image: screenshot.png] above.\n\n- one\n- two **bold**';
-  const r = replaceSection(page, 'Gallery', md);
+  const r = replaceSection(page, 'Gallery', md, tokens(page));
   expect(r.storage).toBe(page); expect(r.dropped).toEqual([]); expect(r.unknown).toEqual([]);
 });
 it('reports a removed token as dropped and keeps bytes outside the section', () => {
-  const r = replaceSection(page, 'Gallery', 'Intro text.\n\nSee {{atlas:2}} [image: screenshot.png] above.');
+  const r = replaceSection(page, 'Gallery', 'Intro text.\n\nSee {{atlas:2}} [image: screenshot.png] above.', tokens(page));
   expect(r.dropped.map(d => d.hint)).toEqual(['macro: toc']);
   expect(r.storage.startsWith('<h2>Gallery</h2>')).toBe(true);
   expect(r.storage.endsWith('<h2>Next</h2><p>Tail</p>')).toBe(true);
 });
 it('ignores edited hint text and reports unknown tokens', () => {
-  const r = replaceSection(page, 'Gallery', '{{atlas:1}} [whatever]\n\n{{atlas:99}} [x]');
+  const r = replaceSection(page, 'Gallery', '{{atlas:1}} [whatever]\n\n{{atlas:99}} [x]', tokens(page));
   expect(r.storage).toContain('<h2>Gallery</h2><ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="abc"/><h2>Next</h2>');
   expect(r.unknown).toEqual([99]);
 });
 it('appends converted markdown and restores tokens copied from the page', () => {
-  const r = appendMarkdown(page, 'More {{atlas:2}} [image: screenshot.png]');
+  const r = appendMarkdown(page, 'More {{atlas:2}} [image: screenshot.png]', tokens(page));
   expect(r.storage).toBe(page + '<p>More <ac:image ac:width="400"><ri:attachment ri:filename="screenshot.png"/></ac:image></p>');
+  expect(r.unknown).toEqual([]);
+  expect(appendMarkdown(page, 'x {{atlas:99}}', tokens(page)).unknown).toEqual([99]);
 });
 it('keeps the rich page byte-identical outside the targeted section', () => {
   const rich = fixture('confluence/rich-page.xml');
   const { start, end } = findSection(rich, parseStorage(rich), 'Left');
-  const out = replaceSection(rich, 'Left', 'Ana and Ivan\n\n{{atlas:6}} [image: ana.png]').storage;
+  const out = replaceSection(rich, 'Left', 'Ana and Ivan\n\n{{atlas:6}} [image: ana.png]', tokens(rich)).storage;
   expect(out.slice(0, start)).toBe(rich.slice(0, start));
   expect(out.slice(out.length - (rich.length - end))).toBe(rich.slice(end));
 });
@@ -777,7 +828,7 @@ out = out.replace(TOKEN_RE, (m, n) => tok(n) ? tok(n).original : (unknown.push(+
 // used = every n substituted; the hint regex also matches escaped hint text because hints contain no ] or newline
 ```
 
-`replaceSection`: parse, `findSection`, collect placeholders for the whole body, `restoreStorageTokens(markdownToStorage(md), map)`, splice `[start, end)`; `dropped` = placeholders whose `start` lies in `[start, end)` and `n` not in `used`. `appendMarkdown`: same conversion, concatenated at the end of the body, no dropped list.
+`replaceSection`: parse, `findSection`, `restoreStorageTokens(markdownToStorage(md), placeholders)` with the page-wide map it was given, splice `[start, end)`; `dropped` = entries of `placeholders` whose `start` lies in `[start, end)` and `n` not in `used`. `appendMarkdown`: same conversion with the same map, concatenated at the end of the body; nothing on the page is replaced, so there is no dropped list, and `unknown` goes to the caller's `Dropped:` line (Task 11).
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -802,10 +853,11 @@ git commit -m "feat: convert markdown to storage and restore placeholder tokens"
 **Interfaces:**
 - Consumes: `parseMarkdown` (Task 7), `Placeholder`, `TOKEN_RE`, `tokenText` (Task 5)
 - Produces:
-  - `interface AdfNode { type: string; attrs?: Record<string, unknown>; content?: AdfNode[]; marks?: { type: string; attrs?: Record<string, unknown> }[]; text?: string }`
+  - `interface AdfNode { type: string; attrs?: Record<string, unknown>; content?: AdfNode[]; marks?: { type: string; attrs?: Record<string, unknown> }[]; text?: string }` (exported from `src/jira/adf/toMarkdown.ts`, as are `AdfDoc` and `AdfPlaceholder`)
+  - `type AdfDoc = { type: 'doc'; version: 1; content: AdfNode[] }`
   - `type AdfPlaceholder = Placeholder<AdfNode>`
-  - `adfToMarkdown(doc: AdfNode | null | undefined, startAt?: number): { markdown: string; placeholders: AdfPlaceholder[] }` (numbers start at `startAt`, default 1)
-  - `markdownToAdf(md: string, tokens?: Map<number, AdfPlaceholder>): { doc: AdfNode; used: Set<number>; unknown: number[] }`
+  - `adfToMarkdown(doc: AdfDoc | AdfNode | null | undefined, startAt?: number): { markdown: string; placeholders: AdfPlaceholder[] }` (numbers start at `startAt`, default 1)
+  - `markdownToAdf(md: string, tokens?: Map<number, AdfPlaceholder>): { doc: AdfDoc; used: Set<number>; unknown: number[] }`
 
 - [ ] **Step 1: Write the fixture**
 
@@ -824,7 +876,7 @@ it('renders supported nodes and tokens', () => {
   expect(markdown).toContain('| A | B |\n| --- | --- |\n| 1 | 2 |');
   expect(placeholders.map(p => [p.n, p.block])).toEqual([[1, false], [2, true], [3, true]]);
 });
-it('continues numbering across comments', () => { expect(adfToMarkdown(fx.comments[0], 4).markdown).toBe('Looks good {{atlas:4}} [card: https://x.y/z]'); });
+it('continues numbering across comments', () => { expect(adfToMarkdown(fx.comments[0], 4).markdown).toBe('Looks good {{atlas:4}} [card: x.y]'); });
 it('builds valid ADF for supported markdown', () => {
   const { doc } = markdownToAdf('# T\n\nA **b** `c` [d](https://e.f)\n\n1. x\n\n```js\ny\n```');
   expect(doc).toEqual({ type: 'doc', version: 1, content: [
@@ -844,6 +896,11 @@ it('splits a paragraph when a block token sits inside text', () => {
   expect(markdownToAdf('before {{atlas:2}} [media: shot.png] after', t).doc.content.map((n: AdfNode) => n.type)).toEqual(['paragraph', 'mediaSingle', 'paragraph']);
 });
 it('reports unknown tokens and leaves them out', () => { expect(markdownToAdf('x {{atlas:7}}').unknown).toEqual([7]); });
+it('restores a leading token and drops the rest of its paragraph, autolinks included', () => {
+  const card: AdfNode = { type: 'inlineCard', attrs: { url: 'https://example.com/x' } };
+  const t = new Map([[2, { n: 2, hint: 'card: example.com', block: false, original: card }]]);
+  expect(markdownToAdf('{{atlas:2}} [card: example.com] and https://example.com/more text', t).doc).toEqual({ type: 'doc', version: 1, content: [{ type: 'paragraph', content: [card] }] });
+});
 ```
 
 - [ ] **Step 3: Run tests to verify they fail**
@@ -853,15 +910,17 @@ Expected: FAIL
 
 - [ ] **Step 4: Implement both walkers**
 
-ADF -> markdown: `paragraph`, `heading`, `bulletList`, `orderedList`, `listItem`, `codeBlock`, `blockquote`, `rule`, `hardBreak`, `table`/`tableRow`/`tableHeader`/`tableCell`, `text` with marks `strong`, `em`, `code`, `strike`, `link`; everything else becomes a token. Block placeholder types: `mediaSingle`, `mediaGroup`, `panel`, `blockCard`, `embedCard`, `expand`, `nestedExpand`, `extension`, `bodiedExtension`, `taskList`, `decisionList`, `layoutSection`; all others are inline. Hints: `mention: <attrs.text>`, `media: <attrs.alt or first media attrs.id>`, `panel: <panelType>, <first 30 chars>`, `card: <attrs.url>`, `emoji: <attrs.shortName>`, `status: <attrs.text>`, `date: <ISO date>`, `<type>` otherwise.
+ADF -> markdown: `paragraph`, `heading`, `bulletList`, `orderedList`, `listItem`, `codeBlock`, `blockquote`, `rule`, `hardBreak`, `table`/`tableRow`/`tableHeader`/`tableCell`, `text` with marks `strong`, `em`, `code`, `strike`, `link`; everything else becomes a token. Block placeholder types: `mediaSingle`, `mediaGroup`, `panel`, `blockCard`, `embedCard`, `expand`, `nestedExpand`, `extension`, `bodiedExtension`, `taskList`, `decisionList`, `layoutSection`; all others are inline. Hints: `mention: <attrs.text>`, `media: <attrs.alt or first media attrs.id>`, `panel: <panelType>, <first 30 chars>`, `card: <host of attrs.url>`, `emoji: <attrs.shortName>`, `status: <attrs.text>`, `date: <ISO date>`, `<type>` otherwise. Hints never contain URLs (a URL is reduced to its host, as in `card: example.com`).
 
-markdown -> ADF: `code` mark never combines with other marks except `link`; a `listItem` always starts with a `paragraph`; table first row uses `tableHeader`; `html` nodes become text. Token restoration on the produced tree:
+markdown -> ADF: the result is an `AdfDoc` (`{ type: 'doc', version: 1, content }`); `code` mark never combines with other marks except `link`; a `listItem` always starts with a `paragraph`; table first row uses `tableHeader`; `html` nodes become text. Token restoration on the produced tree:
 
 ```ts
 // for each paragraph: split its text nodes on TOKEN_RE into segments [text | token n]
 // if the paragraph is exactly one token: block original -> replace the paragraph with it; inline original -> paragraph [original]
 // else inline originals go in place (marks dropped); a block original splits the paragraph into
 //   paragraph(before), original, paragraph(after), dropping empty paragraphs
+// a paragraph whose leading text matches TOKEN_RE (token at the very start): restore that token as above and drop
+//   the remainder of the paragraph, whatever its node types (text, links, autolinks)
 // unknown n -> removed (with its hint), recorded in unknown
 ```
 
@@ -886,9 +945,9 @@ git commit -m "feat: convert markdown to and from ADF with placeholder tokens"
 - Test: `test/confluence/storage/tables.test.ts`
 
 **Interfaces:**
-- Consumes: `parseStorage`, `textOf`, `innerRange`, `openTag`, `escapeXml` (Task 4), `listHeadings` (Task 6)
+- Consumes: `parseStorage`, `textOf`, `innerRange`, `openTag`, `escapeXml` (Task 4), `listHeadings`, `rowCount` (Task 6)
 - Produces:
-  - `interface TableInfo { index: number; el: Element; rows: Element[]; header: string[]; rowCount: number; colCount: number }`
+  - `interface TableInfo { index: number; el: Element; rows: Element[]; header: string[]; rowCount: number; colCount: number }` (`rowCount` is `rowCount(el)` from Task 6)
   - `listTables(doc: Document): TableInfo[]` (document order, nested tables counted; `rows` excludes rows of nested tables)
   - `selectTable(storage: string, doc: Document, sel?: number | string): TableInfo`
   - `updateCell(storage: string, sel: number | string | undefined, row: string, column: string, value: string): { storage: string; old: string; table: number }`
@@ -919,6 +978,9 @@ it('refuses cells with macros, images or nested tables', () => {
 it('lists candidates for unknown or ambiguous rows and columns', () => {
   expect(() => updateCell(page, 1, 'Nope', 'Q2', 'x')).toThrow('No row "Nope" in table 1. Rows: Hosting, Licences, Support.');
   expect(() => updateCell(page, 1, 'Hosting', 'Q9', 'x')).toThrow('No column "Q9" in table 1. Columns: Item, Q1 2026, Q2.');
+  const dup = '<table><tbody><tr><th>K</th><th>V</th><th>v</th></tr><tr><td>a</td><td>1</td><td>2</td></tr><tr><td>A</td><td>3</td><td>4</td></tr></tbody></table>';
+  expect(() => updateCell(dup, 1, 'a', 'K', 'x')).toThrow('Row "a" matches 2 rows in table 1: a, A; use page_edit or make the row label unique.');
+  expect(() => addRow(dup, 1, { v: 'x' })).toThrow('Column "v" matches 2 columns in table 1: V, v; use page_edit or make the column header unique.');
 });
 it('refuses rowspan or colspan in the targeted rows', () => {
   const s = '<table><tbody><tr><th>A</th><th>B</th></tr><tr><td rowspan="2">x</td><td>1</td></tr></tbody></table>';
@@ -945,7 +1007,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement `tables.ts`**
 
-Rows belong to a table when their nearest `table` ancestor is that table. Header is row 1; body rows are the rest; a row label is its first cell's `textOf`. Refused content: any descendant named `ac:*`, `ri:*`, `img` or `table`. Cell text replacement (not determined by the tests alone):
+`rows` are exactly the `tr` elements that `rowCount` (Task 6) counts, those whose nearest `table` ancestor is that table, and `TableInfo.rowCount` is `rowCount(el)`; do not write a second counting rule. Ambiguous row labels or column headers list the matching candidates, up to 5, then `(and N more)`: `Row "a" matches 2 rows in table 1: a, A; use page_edit or make the row label unique.` and `Column "v" matches 2 columns in table 1: V, v; use page_edit or make the column header unique.` Header is row 1; body rows are the rest; a row label is its first cell's `textOf`. Refused content: any descendant named `ac:*`, `ri:*`, `img` or `table`. Cell text replacement (not determined by the tests alone):
 
 ```ts
 // descend the single-element wrapper chain
@@ -979,14 +1041,15 @@ git commit -m "feat: read, update and extend storage tables"
 ### Task 10: Tool framework, runtime, Confluence API and the write path
 
 **Files:**
-- Create: `src/core/tools.ts`, `src/core/runtime.ts`, `src/core/format.ts`, `src/confluence/api.ts`, `src/confluence/write.ts`, `test/helpers/runtime.ts`
-- Test: `test/core/tools.test.ts`, `test/core/format.test.ts`, `test/confluence/write.test.ts`
+- Create: `src/core/tools.ts`, `src/core/runtime.ts`, `src/confluence/api.ts`, `src/confluence/write.ts`, `test/helpers/runtime.ts`
+- Modify: `src/core/format.ts` (add `mdTable`, `versionLine`; `plural` exists from Task 5)
+- Test: `test/core/tools.test.ts`, `test/confluence/write.test.ts`; modify `test/core/format.test.ts`
 
 **Interfaces:**
-- Consumes: `createHttpClient`, `HttpDeps` (Task 3), `resolveSite` (Task 2), `LoadedConfig` (Task 1), `PlaceholderStore` (Task 5), `assertWellFormed` (Task 4)
+- Consumes: `createHttpClient`, `HttpDeps` (Task 3), `resolveSite` (Task 2), `LoadedConfig`, `AtlasError` (Task 1), `Placeholder`, `PlaceholderStore`, `plural` (Task 5), `assertWellFormed` (Task 4)
 - Produces:
   - `interface SiteRuntime { site: Site; http: HttpClient; cache: Map<string, unknown> }`
-  - `interface Runtime { resolve(req: { site?: string; host?: string }): SiteRuntime; sites(): Site[]; storagePlaceholders: PlaceholderStore<string>; adfPlaceholders: PlaceholderStore<AdfNode>; configError?: string }`
+  - `interface Runtime { resolve(req: { site?: string; host?: string }): SiteRuntime; sites(): Site[]; placeholders: { get<T extends Placeholder>(product: string): PlaceholderStore<T> }; configError?: string }` (`placeholders.get(product)` returns one store per product name, created on first use and reused; core never imports Confluence or Jira types)
   - `createRuntime(cfg: LoadedConfig | { error: string }, deps?: HttpDeps): Runtime` (one `SiteRuntime` per site, created lazily and reused; `resolve` throws `configError` when set)
   - `interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> { name: string; description: string; shape: S; run(args: z.infer<z.ZodObject<S>>, rt: Runtime): Promise<string> }`
   - `interface ProductModule { name: string; tools: ToolDef<any>[] }`
@@ -994,7 +1057,7 @@ git commit -m "feat: read, update and extend storage tables"
   - `siteParam` = `z.string().optional().describe('Site name or host')`
   - `executeTool(def: ToolDef, args: unknown, rt: Runtime): Promise<{ text: string; isError: boolean }>`
   - `registerModules(server: McpServer, modules: ProductModule[], rt: Runtime): void`
-  - `mdTable(headers: string[], rows: string[][]): string`, `versionLine(verb: string, title: string, from: number, to: number, extra?: string): string`, `plural(n: number, word: string): string`
+  - `mdTable(headers: string[], rows: string[][]): string`, `versionLine(verb: string, title: string, from: number, to: number, extra?: string): string`, added to `src/core/format.ts` next to `plural` (Task 5)
   - `interface PageData { id: string; title: string; spaceId: string; version: number; storage: string; webui?: string }`
   - `getPage(rt: SiteRuntime, id: string): Promise<PageData>`
   - `putPage(rt: SiteRuntime, page: PageData, storage: string, message: string): Promise<number>` (returns the new version)
@@ -1004,11 +1067,10 @@ git commit -m "feat: read, update and extend storage tables"
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-// test/core/format.test.ts
-it('formats tables, version lines and plurals', () => {
+// test/core/format.test.ts  (extends the Task 5 file, which tests plural)
+it('formats tables and version lines', () => {
   expect(mdTable(['id', 'title'], [['1', 'a|b']])).toBe('| id | title |\n| --- | --- |\n| 1 | a\\|b |');
   expect(versionLine('Updated', 'Costs', 13, 14, '1 replacement')).toBe('Updated "Costs" v13 -> v14 (1 replacement)');
-  expect(plural(2, 'item')).toBe('2 items');
 });
 ```
 
@@ -1033,14 +1095,27 @@ it('every tool call fails with the config error when config is broken', async ()
 ```
 
 ```ts
-// test/confluence/write.test.ts  (GET returns version 13, title Costs, storage '<p>a</p>')
+// test/confluence/write.test.ts  (getPage13: GET /wiki/api/v2/pages/7 returns version 13, title Costs, storage '<p>a</p>'; getPage14: the same page at version 14)
 it('PUTs version + 1 with the tool message and the full required body', async () => {
   const { rt, calls } = testRuntime([getPage13, { method: 'PUT', path: '/wiki/api/v2/pages/7', json: { version: { number: 14 } } }]);
   const r = await writePage(rt.resolve({}), '7', 'page_edit', p => ({ storage: p.storage.replace('a', 'b') }));
   expect(r).toMatchObject({ from: 13, to: 14 });
-  expect(calls[1].body).toEqual({ id: '7', status: 'current', title: 'Costs', body: { representation: 'storage', value: '<p>b</p>' }, version: { number: 14, message: 'atlas-lite-mcp page_edit' } });
+  expect(calls[1]!.body).toEqual({ id: '7', status: 'current', title: 'Costs', body: { representation: 'storage', value: '<p>b</p>' }, version: { number: 14, message: 'atlas-lite-mcp page_edit' } });
 });
-it('re-fetches once and re-applies on 409', async () => { /* PUT 409 once, GET v14, PUT ok -> transform called twice, second PUT version 15 */ });
+it('re-fetches once and re-applies on 409', async () => {
+  const { rt, calls } = testRuntime([
+    { ...getPage13, times: 1 },
+    { method: 'PUT', path: '/wiki/api/v2/pages/7', status: 409, json: {}, times: 1 },
+    getPage14,
+    { method: 'PUT', path: '/wiki/api/v2/pages/7', json: { version: { number: 15 } } },
+  ]);
+  const transform = vi.fn((p: PageData) => ({ storage: p.storage.replace('a', 'b') }));
+  const r = await writePage(rt.resolve({}), '7', 'page_edit', transform);
+  expect(transform).toHaveBeenCalledTimes(2);
+  expect(r).toMatchObject({ from: 14, to: 15 });
+  expect(calls.map(c => c.method)).toEqual(['GET', 'PUT', 'GET', 'PUT']);
+  expect(calls[3]!.body.version).toEqual({ number: 15, message: 'atlas-lite-mcp page_edit' });
+});
 it('says so when the transform no longer applies after a 409', async () => {
   await expect(run409ThenTransformThrows()).rejects.toThrow('Page "Costs" changed during the edit and the change no longer applies: No match for the find text.');
 });
@@ -1059,7 +1134,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement the framework, runtime, API functions and `writePage`**
 
-`executeTool`: `z.object(def.shape).safeParse(args)`; failure -> `Invalid arguments: <path> <message>; ...`; `AtlasError` -> its message; other errors -> `Unexpected error: ` + message with every configured `apiToken` replaced by `***`. `registerModules` calls `server.registerTool(def.name, { description: def.description, inputSchema: def.shape }, args => executeTool(...) -> { content: [{ type: 'text', text }], isError })`. `getPage` GETs `/wiki/api/v2/pages/{id}` with `query: { 'body-format': 'storage' }` and `notFound: 'page ' + id`. `writePage` calls `assertWellFormed` before every PUT; a second 409 -> `Page "Costs" is being edited by someone else; try again.`
+`executeTool`: `z.object(def.shape).safeParse(args)`; failure -> `Invalid arguments: <path> <message>; ...`; `AtlasError` -> its message; other errors -> `Unexpected error: ` + message with every configured `apiToken` replaced by `***`. `registerModules` calls `server.registerTool(def.name, { description: def.description, inputSchema: def.shape }, args => executeTool(...) -> { content: [{ type: 'text', text }], isError })`. `getPage` GETs `/wiki/api/v2/pages/{id}` with `query: { 'body-format': 'storage' }` and `notFound: 'page ' + id`. `writePage` calls `assertWellFormed` before every PUT; after a 409 it re-fetches, re-applies the transform and reports the versions of the write that landed (`from: 14, to: 15` in the test); a second 409 -> `Page "Costs" is being edited by someone else; try again.`
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1083,9 +1158,9 @@ git commit -m "feat: add tool framework, runtime and Confluence write path"
 - Test: `test/confluence/tools/pages.test.ts`
 
 **Interfaces:**
-- Consumes: `defineTool`, `siteParam`, `executeTool`, `writePage`, `getPage`, `testRuntime` (Task 10); `parsePageRef` (Task 2); `storageToMarkdown` (Task 5); `findSection`, `outline` (Task 6); `replaceSection`, `appendMarkdown` (Task 7); `findReplace` (Task 4); `formatDropped` (Task 5)
+- Consumes: `defineTool`, `siteParam`, `executeTool`, `writePage`, `getPage`, `versionLine`, `Runtime.placeholders`, `testRuntime` (Task 10); `parsePageRef` (Task 2); `storageToMarkdown`, `StoragePlaceholder`, `collectStoragePlaceholders`, `formatDropped` (Task 5); `findSection`, `outline` (Task 6); `replaceSection`, `appendMarkdown` (Task 7); `parseStorage`, `findReplace` (Task 4)
 - Produces:
-  - `spaceKeyForId(rt: SiteRuntime, spaceId: string): Promise<string>` (cached in `rt.cache` as `space-key:<id>`)
+  - `spaceKeyForId(rt: SiteRuntime, spaceId: string): Promise<string>` (cached in `rt.cache` as `confluence:spaceKey:<site>:<id>`)
   - `pageTools: ToolDef[]` = `page_get`, `page_edit`, `page_update_section`, `page_append`
   - `confluenceModule: ProductModule` (`name: 'confluence'`, tools grow in Tasks 12 and 13)
   - Shared helper in `pages.ts`: `pageTarget(args: { url?: string; id?: string; site?: string }, rt: Runtime): { srt: SiteRuntime; id: string }`
@@ -1128,6 +1203,9 @@ it('restores tokens in a fresh runtime that never served page_get', async () => 
   expect(calls.at(-1)!.body.body.value).toBe(page);
 });
 it('page_append returns versions', async () => { expect((await run('page_append', { url: '7', markdown: 'Bye' })).text).toBe('Appended to "Costs" v13 -> v14'); });
+it('page_append reports unknown tokens as dropped', async () => {
+  expect((await run('page_append', { url: '7', markdown: 'Bye {{atlas:99}}' })).text).toBe('Appended to "Costs" v13 -> v14\nDropped: 1 item: {{atlas:99}} [unknown token]');
+});
 it('rejects a URL whose host is not the given site', async () => {
   expect((await run('page_edit', { url: 'https://qint.atlassian.net/wiki/pages/viewpage.action?pageId=7', find: 'a', replace: 'b', site: 'gumperr' })).isError).toBe(true);
 });
@@ -1140,7 +1218,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement the four tools and `confluenceModule`**
 
-`page_get` and the write tools populate or read `rt.storagePlaceholders.getOrBuild('<site>:page:<id>', String(version), ...)`; writes always transform the freshly fetched storage, so a missing or stale map is rebuilt from the current version. `page_get` header: `# <title>` (or `# <title> > <heading>`) then `Page <id> in <space key>, v<version>` then a blank line.
+Placeholder map: `rt.placeholders.get<StoragePlaceholder>('confluence').getOrBuild('confluence:page:<site>:<id>', String(page.version), () => collectStoragePlaceholders(page.storage, parseStorage(page.storage)))`. `page_get` fills it; `page_update_section` and `page_append` call it inside the `writePage` transform on the freshly fetched page and pass the map to `replaceSection` / `appendMarkdown`. When the stored version differs from the current page version, `getOrBuild` rebuilds the map from the current storage before restoring (spec 6.7), so a fresh or stale store still restores tokens. `page_update_section` and `page_append` both add `formatDropped(dropped, unknown)` as a second line when it is not null (`page_append` has no dropped placeholders, only `unknown`). `page_get` header: `# <title>` (or `# <title> > <heading>`) then `Page <id> in <space key>, v<version>` then a blank line.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1159,18 +1237,19 @@ git commit -m "feat: add page_get, page_edit, page_update_section and page_appen
 ### Task 12: Page create, search and comment tools
 
 **Files:**
-- Create: `src/confluence/tools/publish.ts`
+- Create: `src/confluence/tools/publish.ts`, `src/core/query.ts`
 - Modify: `src/confluence/api.ts` (add `spaceIdForKey`, `createPage`, `searchPages`, `addFooterComment`), `src/confluence/module.ts`
-- Test: `test/confluence/tools/publish.test.ts`
+- Test: `test/confluence/tools/publish.test.ts`, `test/core/query.test.ts`
 
 **Interfaces:**
-- Consumes: Task 10 and 11 interfaces, `markdownToStorage` (Task 7)
+- Consumes: Task 10 and 11 interfaces, `markdownToStorage` (Task 7), `parsePageRef` (Task 2)
 - Produces:
-  - `spaceIdForKey(rt: SiteRuntime, key: string): Promise<string>` (cached `space-id:<KEY>`; unknown key -> `No Confluence space "XX" on site gumperr.`)
-  - `createPage(rt, input: { spaceId: string; title: string; storage: string; parentId?: string }): Promise<{ id: string; version: number; url: string }>` (url = `site.baseUrl + '/wiki' + _links.webui`)
-  - `searchPages(rt, cql: string, limit: number): Promise<{ id: string; title: string; space: string; modified: string }[]>`
-  - `addFooterComment(rt, pageId: string, storage: string): Promise<string>`
-  - `buildCql(query: string, space?: string): string`
+  - `splitOrderBy(query: string): { where: string; orderBy: string }` in `src/core/query.ts` (the one quote-aware helper: splits at the last `ORDER BY` outside double-quoted strings, honouring `\"` escapes; both parts trimmed, `orderBy` keeps the `ORDER BY ...` text and is `''` when absent; Task 14 reuses it for `buildJql`)
+  - `spaceIdForKey(rt: SiteRuntime, key: string): Promise<string>` (cached `confluence:spaceId:<site>:<KEY>`, e.g. `confluence:spaceId:gumperr:SD`; unknown key -> `No Confluence space "XX" on site gumperr.`)
+  - `createPage(rt: SiteRuntime, input: { spaceId: string; title: string; storage: string; parentId?: string }): Promise<{ id: string; version: number; url: string }>` (url = `site.baseUrl + '/wiki' + _links.webui`)
+  - `searchPages(rt: SiteRuntime, cql: string, limit: number): Promise<{ id: string; title: string; space: string; modified: string }[]>`
+  - `addFooterComment(rt: SiteRuntime, pageId: string, storage: string): Promise<string>`
+  - `buildCql(query: string, space?: string): string` (in `src/confluence/tools/publish.ts`, built on `splitOrderBy`)
   - `publishTools: ToolDef[]` = `page_create`, `page_search`, `page_comment`
 
 Schemas: `page_create` `Create a page from markdown.`; `space?` (`Space key; default from site`), `title`, `markdown`, `parent?` (`Parent page URL or id`), `site`. `page_search` `Search pages by CQL or plain text.`; `query`, `space?`, `limit?` (`Default 10`), `site`. `page_comment` `Add a footer comment to a page.`; `url`, `markdown`, `site`.
@@ -1178,16 +1257,28 @@ Schemas: `page_create` `Create a page from markdown.`; `space?` (`Space key; def
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-// test/confluence/tools/publish.test.ts
+// test/core/query.test.ts
+it('splits ORDER BY outside double quotes only', () => {
+  expect(splitOrderBy('title ~ "Costs" ORDER BY lastmodified DESC')).toEqual({ where: 'title ~ "Costs"', orderBy: 'ORDER BY lastmodified DESC' });
+  expect(splitOrderBy('ORDER BY created DESC')).toEqual({ where: '', orderBy: 'ORDER BY created DESC' });
+  expect(splitOrderBy('summary ~ "order by me"')).toEqual({ where: 'summary ~ "order by me"', orderBy: '' });
+  expect(splitOrderBy('summary ~ "a \\" order by" order by key')).toEqual({ where: 'summary ~ "a \\" order by"', orderBy: 'order by key' });
+});
+```
+
+```ts
+// test/confluence/tools/publish.test.ts  (site gumperr, defaultConfluenceSpace SD; GET /wiki/api/v2/spaces?keys=SD -> id 100; GET page 7 -> title Costs, spaceId 100; POST /wiki/api/v2/pages -> id 900, version 1, _links.webui /spaces/SD/pages/900/Notes; runNoDefaultSpace = the same routes on a site without defaultConfluenceSpace)
 it('buildCql turns plain text into a quoted text search and scopes CQL to a space', () => {
   expect(buildCql('budget "Q3" plan')).toBe('type = page AND text ~ "budget \\"Q3\\" plan"');
   expect(buildCql('budget', 'SD')).toBe('type = page AND space = "SD" AND text ~ "budget"');
   expect(buildCql('title ~ "Costs" ORDER BY lastmodified DESC', 'SD')).toBe('space = "SD" AND (title ~ "Costs") ORDER BY lastmodified DESC');
   expect(buildCql('space = SD AND title ~ x', 'QA')).toBe('space = SD AND title ~ x');
+  expect(buildCql('title ~ "order by x"', 'SD')).toBe('space = "SD" AND (title ~ "order by x")');
+  expect(buildCql('ORDER BY created DESC', 'SD')).toBe('space = "SD" ORDER BY created DESC');
 });
 it('page_search returns a compact table with default limit 10', async () => {
   const { text, calls } = await runWithCalls('page_search', { query: 'budget' });
-  expect(new URL(calls[0].url).searchParams.get('limit')).toBe('10');
+  expect(new URL(calls[0]!.url).searchParams.get('limit')).toBe('10');
   expect(text).toBe('| id | title | space | modified |\n| --- | --- | --- | --- |\n| 7 | Costs | SD | 2026-11-01 |');
 });
 it('page_search says when nothing matched', async () => { expect((await run('page_search', { query: 'zzz' })).text).toBe('No pages found.'); });
@@ -1196,7 +1287,12 @@ it('page_create uses the site default space and returns url, id and version', as
   expect(calls.find(c => c.method === 'POST')!.body).toEqual({ spaceId: '100', status: 'current', title: 'Notes', body: { representation: 'storage', value: '<h1>Hi</h1>' } });
   expect(text).toBe('Created "Notes" 900 v1 https://gumperr.atlassian.net/wiki/spaces/SD/pages/900/Notes');
 });
-it('page_create takes the space from the parent when space is omitted and no default exists', async () => { /* parent '7' -> GET page 7 -> spaceId 100, parentId '7' in body */ });
+it('page_create takes the space from the parent when space is omitted and no default exists', async () => {
+  const { text, calls } = await runNoDefaultSpace('page_create', { title: 'Notes', markdown: '# Hi', parent: '7' });
+  expect(calls.some(c => new URL(c.url).pathname === '/wiki/api/v2/pages/7')).toBe(true);
+  expect(calls.find(c => c.method === 'POST')!.body).toEqual({ spaceId: '100', status: 'current', title: 'Notes', parentId: '7', body: { representation: 'storage', value: '<h1>Hi</h1>' } });
+  expect(text).toBe('Created "Notes" 900 v1 https://gumperr.atlassian.net/wiki/spaces/SD/pages/900/Notes');
+});
 it('page_create requires site when several sites exist', async () => { expect((await runTwoSites('page_create', { title: 'x', markdown: 'y' })).text).toBe('Several sites are configured; pass site as one of: gumperr, qint.'); });
 it('page_comment posts a footer comment', async () => {
   const { text, calls } = await runWithCalls('page_comment', { url: '7', markdown: 'Looks *good*' });
@@ -1207,22 +1303,22 @@ it('page_comment posts a footer comment', async () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm vitest run test/confluence/tools/publish.test.ts`
+Run: `pnpm vitest run test/confluence/tools/publish.test.ts test/core/query.test.ts`
 Expected: FAIL
 
 - [ ] **Step 3: Implement**
 
-CQL detection: `/[=~<>]|\b(?:not\s+)?in\s*\(|\border\s+by\b/i`. Space scoping wraps the query only when it has no `space` clause (`/\bspace\s*(?:=|!=|in\b|not\s+in\b)/i`); a trailing `ORDER BY` stays outside the parentheses. Escape `\` and `"` in quoted strings. `modified` is the date part of `version.when`.
+`buildCql` first calls `splitOrderBy(query)`. CQL detection: `/[=~<>]|\b(?:not\s+)?in\s*\(/i` matches `where`, or `orderBy` is non-empty. Plain text becomes `type = page AND text ~ "<quoted>"` (plus the space clause when a space is known). Space scoping applies only when `where` has no `space` clause (`/\bspace\s*(?:=|!=|in\b|not\s+in\b)/i`) and is prepended to `where` only: `space = "SD" AND (<where>) <orderBy>`, or `space = "SD" <orderBy>` when `where` is empty (no trailing space when `orderBy` is empty). Escape `\` and `"` in quoted strings. `modified` is the date part of `version.when`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm vitest run test/confluence`
+Run: `pnpm vitest run test/confluence test/core`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/confluence test/confluence/tools/publish.test.ts
+git add src/confluence src/core/query.ts test/confluence/tools/publish.test.ts test/core/query.test.ts
 git commit -m "feat: add page_create, page_search and page_comment"
 ```
 
@@ -1236,7 +1332,7 @@ git commit -m "feat: add page_create, page_search and page_comment"
 - Test: `test/confluence/tools/tables.test.ts`
 
 **Interfaces:**
-- Consumes: `selectTable`, `updateCell`, `addRow` (Task 9); `storageToMarkdown` (Task 5); `writePage`, `getPage` (Task 10); `pageTarget` (Task 11)
+- Consumes: `selectTable`, `updateCell`, `addRow` (Task 9); `storageToMarkdown` (Task 5); `parseStorage` (Task 4); `writePage`, `getPage` (Task 10); `pageTarget` (Task 11)
 - Produces: `tableTools: ToolDef[]` = `table_get`, `table_update`, `table_add_row`
 
 Schemas: `table` is `z.union([z.number().int().positive(), z.string()]).optional().describe('Index or heading above')`. `table_get` `Read one page table as markdown.`; `url`, `table?`, `site`. `table_update` `Set one table cell, matched by row label and column header.`; `url`, `row`, `column`, `value`, `table?`, `site`. `table_add_row` `Add a table row; cells map column names to values.`; `url`, `cells` (`z.record(z.string(), z.string())`), `table?`, `position?` (`end or after:<row label>`), `site`.
@@ -1266,7 +1362,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement the three tools**
 
-`table_get` renders `storageToMarkdown(storage, { within: table range })`. Writes go through `writePage(srt, id, '<tool>', page => ...)`.
+`table_get` renders the table element's outer range, `storage.slice(table.el.startIndex, table.el.endIndex + 1)`, passed as `storageToMarkdown(storage, { within: { start: table.el.startIndex, end: table.el.endIndex + 1 } })` so the whole `table` element is inside the range (a GFM table comes out) and tokens keep their page-wide numbers (`{{atlas:5}}` in the test). Writes go through `writePage(srt, id, '<tool>', page => ...)`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1285,21 +1381,21 @@ git commit -m "feat: add table_get, table_update and table_add_row"
 ### Task 14: Jira read, search, transition and comment tools
 
 **Files:**
-- Create: `src/jira/api.ts`, `src/jira/jql.ts`, `src/jira/tools/read.ts`, `src/jira/module.ts`
-- Create: `src/jira/fields.ts` (only `displayValue` and `listFields` usage in this task)
+- Create: `src/jira/api.ts` (all Jira HTTP calls, `listFields` included), `src/jira/jql.ts`, `src/jira/tools/read.ts`, `src/jira/module.ts`
+- Create: `src/jira/fields.ts` (pure logic only, no HTTP calls; only `displayValue` in this task)
 - Test: `test/jira/jql.test.ts`, `test/jira/tools/read.test.ts`
 
 **Interfaces:**
-- Consumes: framework (Task 10), `parseIssueRef` (Task 2), `adfToMarkdown`, `markdownToAdf` (Task 8), `formatDropped` (Task 5)
+- Consumes: framework and `Runtime.placeholders` (Task 10), `parseIssueRef` (Task 2), `adfToMarkdown`, `markdownToAdf`, `AdfDoc`, `AdfPlaceholder` (Task 8), `formatDropped` (Task 5), `splitOrderBy` (Task 12)
 - Produces:
-  - `isJql(q: string): boolean`; `quote(s: string): string`; `buildJql(query: string, defaultProject?: string): string`
+  - `isJql(q: string): boolean`; `quote(s: string): string`; `buildJql(query: string, defaultProject?: string): string` (splits with `splitOrderBy` from `src/core/query.ts`, no second ORDER BY logic)
   - `interface JiraIssue { id: string; key: string; fields: Record<string, any> }`
   - `getIssue(rt: SiteRuntime, key: string, fields: string[]): Promise<JiraIssue>` (`notFound: 'issue ' + key`)
   - `searchIssues(rt: SiteRuntime, jql: string, limit: number): Promise<JiraIssue[]>`
-  - `listFields(rt: SiteRuntime): Promise<{ id: string; name: string; schema?: { type: string; custom?: string } }[]>` (cached `jira:fields`)
-  - `getTransitions(rt, key): Promise<{ id: string; name: string; to: { name: string } }[]>`, `doTransition(rt, key, id): Promise<void>`
-  - `addComment(rt, key, body: AdfNode): Promise<string>` (returns comment id)
-  - `issuePlaceholders(rt: Runtime, srt: SiteRuntime, issue: JiraIssue): Map<number, AdfPlaceholder>` (description first, then comments in order; store key `<site>:issue:<KEY>`, version `fields.updated`)
+  - `listFields(rt: SiteRuntime): Promise<{ id: string; name: string; schema?: { type: string; custom?: string } }[]>` in `src/jira/api.ts` (cached `jira:fields:<site>`)
+  - `getTransitions(rt: SiteRuntime, key: string): Promise<{ id: string; name: string; to: { name: string } }[]>`, `doTransition(rt: SiteRuntime, key: string, id: string): Promise<void>`
+  - `addComment(rt: SiteRuntime, key: string, body: AdfDoc): Promise<string>` (returns comment id)
+  - `issuePlaceholders(rt: Runtime, srt: SiteRuntime, issue: JiraIssue): Map<number, AdfPlaceholder>` (description first, then comments in order; `rt.placeholders.get<AdfPlaceholder>('jira').getOrBuild('jira:issue:<site>:<KEY>', fields.updated, ...)`, so a changed `updated` rebuilds the map from the fetched issue)
   - `displayValue(v: unknown): string` (strings, numbers, `displayName`/`name`/`value`/`key` objects, arrays joined with `, `, ADF via `adfToMarkdown`, null -> `-`)
   - `readTools: ToolDef[]` = `issue_get`, `issue_search`, `issue_transition`, `issue_comment`; `jiraModule: ProductModule` (`name: 'jira'`)
 
@@ -1340,12 +1436,12 @@ it('issue_get requests default fields plus extras resolved by display name', asy
   expect(new URL(calls.at(-1)!.url).searchParams.get('fields')).toBe('summary,issuetype,status,priority,assignee,reporter,labels,parent,created,updated,description,customfield_10042');
 });
 it('issue_get includes comments on request, numbering after the description', async () => {
-  expect((await run('issue_get', { key: 'GUM-12', include_comments: true })).text).toContain('Comments (2):\n\n### Ana, 2026-11-02 (id 10001)\nLooks good {{atlas:4}} [card: https://x.y/z]');
+  expect((await run('issue_get', { key: 'GUM-12', include_comments: true })).text).toContain('Comments (2):\n\n### Ana, 2026-11-02 (id 10001)\nLooks good {{atlas:4}} [card: x.y]');
 });
 it('issue_search posts to /rest/api/3/search/jql with fields and follows nextPageToken up to the limit', async () => {
   const { text, calls } = await runWithCalls('issue_search', { query: 'login', limit: 3 });
   expect(calls[0]).toMatchObject({ method: 'POST', body: { jql: 'project = "GUM" AND (text ~ "login") ORDER BY updated DESC', maxResults: 3, fields: ['summary', 'issuetype', 'status', 'assignee'] } });
-  expect(calls[1].body.nextPageToken).toBe('tok2');
+  expect(calls[1]!.body.nextPageToken).toBe('tok2');
   expect(text.split('\n')[0]).toBe('| key | type | status | assignee | summary |');
   expect(text.split('\n')).toHaveLength(5);
 });
@@ -1370,7 +1466,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement**
 
-`isJql(q)` is true when `/[=~<>]|\b(?:not\s+)?in\s*\(|\bis\s+(?:not\s+)?(?:empty|null)\b/i` matches, or when `ORDER BY` occurs outside double-quoted strings. Split `ORDER BY` at its last occurrence outside double-quoted strings. Project clause test: `/\bproject\s*(?:=|!=|\bin\b|\bnot\s+in\b)/i`. `searchIssues` caps `maxResults` at `min(limit, 100)` and loops while `!isLast && nextPageToken && issues.length < limit`. `issue_get` extras: names resolved via `listFields` (by id, else display name case-insensitive; unknown -> `Unknown field "X".`), printed as one `Name: value` line each after the header. Comments block: `Comments (N):` then per comment `### <author>, <YYYY-MM-DD> (id <id>)` and its markdown. `issue_comment` fetches `description,comment,updated` to rebuild the token map before converting; unknown tokens add the `Dropped:` line.
+`buildJql` first calls `splitOrderBy(query)` (Task 12). `isJql(q)` is true when `/[=~<>]|\b(?:not\s+)?in\s*\(|\bis\s+(?:not\s+)?(?:empty|null)\b/i` matches `where`, or `splitOrderBy(q).orderBy` is non-empty. Plain text: `where` = `text ~ "<quoted>"`, `orderBy` = `ORDER BY updated DESC`. Project clause test on `where`: `/\bproject\s*(?:=|!=|\bin\b|\bnot\s+in\b)/i`; without one and with a default project the clause is prepended to `where` only: `project = "GUM" AND (<where>) <orderBy>`, or `project = "GUM" <orderBy>` when `where` is empty (no trailing space when `orderBy` is empty). `searchIssues` caps `maxResults` at `min(limit, 100)` and loops while `!isLast && nextPageToken && issues.length < limit`. `issue_get` extras: names resolved via `listFields` (by id, else display name case-insensitive; unknown -> `Unknown field "X".`), printed as one `Name: value` line each after the header. Comments block: `Comments (N):` then per comment `### <author>, <YYYY-MM-DD> (id <id>)` and its markdown. `issue_comment` fetches `description,comment,updated` to rebuild the token map before converting; unknown tokens add the `Dropped:` line.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1390,7 +1486,7 @@ git commit -m "feat: add issue_get, issue_search, issue_transition and issue_com
 
 **Files:**
 - Create: `src/jira/users.ts`, `src/jira/tools/write.ts`
-- Modify: `src/jira/fields.ts`, `src/jira/api.ts`, `src/jira/module.ts`
+- Modify: `src/jira/fields.ts` (pure logic: `normalizeCreateMeta`, `normalizeEditMeta`, `resolveFields`, `missingRequired`, `formatMissing`), `src/jira/api.ts` (HTTP: `projectIssueTypes`, `createMeta`, `editMeta`, `createIssue`, `updateIssue`), `src/jira/module.ts`
 - Test: `test/jira/fields.test.ts`, `test/jira/tools/write.test.ts`
 
 **Interfaces:**
@@ -1398,9 +1494,9 @@ git commit -m "feat: add issue_get, issue_search, issue_transition and issue_com
 - Produces:
   - `interface FieldMeta { id: string; name: string; required: boolean; hasDefaultValue: boolean; schema: { type: string; items?: string; system?: string; custom?: string }; allowedValues?: { id: string; name?: string; value?: string }[] }`
   - `normalizeCreateMeta(json: unknown): FieldMeta[]` (reads `fields ?? results`, id from `fieldId ?? key`), `normalizeEditMeta(json: unknown): FieldMeta[]`
-  - `projectIssueTypes(rt, project): Promise<{ id: string; name: string }[]>` (cached), `createMeta(rt, project, issueTypeId): Promise<FieldMeta[]>` (cached per project and type for the process), `editMeta(rt, key): Promise<FieldMeta[]>`, `createIssue(rt, fields): Promise<{ key: string }>`, `updateIssue(rt, key, fields): Promise<void>`
+  - In `src/jira/api.ts`: `projectIssueTypes(rt: SiteRuntime, project: string): Promise<{ id: string; name: string }[]>` (cached `jira:issueTypes:<site>:<project>`), `createMeta(rt: SiteRuntime, project: string, issueTypeId: string): Promise<FieldMeta[]>` (cached `jira:createMeta:<site>:<project>:<issueTypeId>` for the process), `editMeta(rt: SiteRuntime, key: string): Promise<FieldMeta[]>`, `createIssue(rt: SiteRuntime, fields: Record<string, unknown>): Promise<{ key: string }>`, `updateIssue(rt: SiteRuntime, key: string, fields: Record<string, unknown>): Promise<void>`
   - `findUser(rt: SiteRuntime, query: string): Promise<{ accountId: string; displayName: string }>`
-  - `resolveFields(rt: SiteRuntime, meta: FieldMeta[], input: Record<string, unknown>, label: string): Promise<{ fields: Record<string, unknown>; names: string[] }>`
+  - `resolveFields(rt: SiteRuntime, meta: FieldMeta[], input: Record<string, unknown>, label: string): Promise<{ fields: Record<string, unknown>; names: string[] }>` (in `fields.ts`; makes no HTTP call itself, user values go through `findUser`)
   - `missingRequired(meta: FieldMeta[], supplied: Set<string>): FieldMeta[]`, `formatMissing(label: string, missing: FieldMeta[]): string`
   - `writeTools: ToolDef[]` = `issue_create`, `issue_update`
 
@@ -1428,13 +1524,13 @@ it('formats missing required fields', () => {
   expect(formatMissing('GUM Bug', missingRequired(meta, new Set(['summary'])))).toBe('Not created: GUM Bug needs these fields:\n- Severity: S1, S2, S3, S4, S5, S6, S7, S8, S9, S10 (and 2 more)');
 });
 it('normalizes createmeta pages that use either fields or results', () => {
-  expect(normalizeCreateMeta({ results: [{ fieldId: 'priority', name: 'Priority', required: false, schema: { type: 'priority' } }] })[0].id).toBe('priority');
-  expect(normalizeCreateMeta({ fields: [{ fieldId: 'x', name: 'X', required: true, schema: { type: 'string' } }] })[0].required).toBe(true);
+  expect(normalizeCreateMeta({ results: [{ fieldId: 'priority', name: 'Priority', required: false, schema: { type: 'priority' } }] })[0]!.id).toBe('priority');
+  expect(normalizeCreateMeta({ fields: [{ fieldId: 'x', name: 'X', required: true, schema: { type: 'string' } }] })[0]!.required).toBe(true);
 });
 ```
 
 ```ts
-// test/jira/tools/write.test.ts  (site default project GUM; issue types Bug(1), Task(2))
+// test/jira/tools/write.test.ts  (site default project GUM; issue types Bug(1), Task(2); createRoutes = the issuetypes and createmeta routes plus POST /rest/api/3/issue -> GUM-13; byName and testRuntime as in Task 11)
 it('issue_create resolves type, converts description, resolves assignee and returns key and URL', async () => {
   const { text, calls } = await runWithCalls('issue_create', { type: 'bug', summary: 'Login fails', description: '**Steps**', labels: ['web'], assignee: 'Ana', fields: { Severity: 'S1' } });
   expect(calls.find(c => c.method === 'POST')!.body.fields).toEqual({ project: { key: 'GUM' }, issuetype: { id: '1' }, summary: 'Login fails', description: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Steps', marks: [{ type: 'strong' }] }] }] }, labels: ['web'], assignee: { accountId: 'u1' }, customfield_10050: { id: '1001' } });
@@ -1447,7 +1543,14 @@ it('issue_create returns missing required fields instead of creating', async () 
 });
 it('issue_create lists issue types when the type does not match', async () => { expect((await run('issue_create', { type: 'Epic', summary: 'x' })).text).toBe('No issue type "Epic" in GUM. Types: Bug, Task.'); });
 it('issue_create needs a project when the site has no default', async () => { expect((await runNoDefault('issue_create', { type: 'Bug', summary: 'x' })).text).toBe('Pass project; site gumperr has no defaultJiraProject.'); });
-it('issue_create reuses cached create metadata', async () => { /* two creates -> createmeta GET called once */ });
+it('issue_create reuses cached create metadata', async () => {
+  const { rt, calls } = testRuntime(createRoutes);
+  for (const summary of ['a', 'b']) await executeTool(byName('issue_create'), { type: 'Bug', summary, fields: { Severity: 'S1' } }, rt);
+  const gets = (path: string) => calls.filter(c => c.method === 'GET' && new URL(c.url).pathname === path).length;
+  expect(gets('/rest/api/3/issue/createmeta/GUM/issuetypes')).toBe(1);
+  expect(gets('/rest/api/3/issue/createmeta/GUM/issuetypes/1')).toBe(1);
+  expect(calls.filter(c => c.method === 'POST')).toHaveLength(2);
+});
 it('issue_update names changed fields and reports dropped description tokens', async () => {
   const r = await run('issue_update', { key: 'GUM-12', summary: 'New', description: 'Only text now' });
   expect(r.text).toBe('Updated GUM-12: summary, description\nDropped: 3 items: [mention: @Ana], [media: shot.png], [panel: info, Careful]');
@@ -1455,7 +1558,7 @@ it('issue_update names changed fields and reports dropped description tokens', a
 it('issue_update resolves fields against editmeta', async () => {
   const { calls } = await runWithCalls('issue_update', { key: 'GUM-12', fields: { Priority: 'low' } });
   expect(calls.map(c => new URL(c.url).pathname)).toEqual(['/rest/api/3/issue/GUM-12/editmeta', '/rest/api/3/issue/GUM-12']);
-  expect(calls[1].body).toEqual({ fields: { priority: { id: '3' } } });
+  expect(calls[1]!.body).toEqual({ fields: { priority: { id: '3' } } });
 });
 ```
 
@@ -1466,7 +1569,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement**
 
-Value rules by `schema`: `number` -> `Number(v)` (NaN -> `<Name> needs a number.`); `date`/`datetime` -> string as given; `user` -> `{ accountId }` via `findUser`; `array` of `string` -> string array; `array` of `user` -> `[{ accountId }]`; `array` with `allowedValues` -> `[{ id }]`; any field with `allowedValues` -> `{ id }` matched on `name ?? value`; custom `com.pyxis.greenhopper.jira:gh-sprint` -> integer; system `parent` -> `{ key }`; rich text (`system` `description`/`environment` or custom containing `textarea`) -> ADF via `markdownToAdf`; otherwise the value unchanged. `findUser`: `GET /rest/api/3/user/search?query=`, active users only, exact case-insensitive match on `displayName` or `emailAddress` first, then a single result, else the ambiguity error; none -> `No Jira user matches "X".` Required check ignores `project`, `issuetype`, `summary` and fields with `hasDefaultValue`. Description drops: description placeholders (rebuilt from the freshly fetched issue) whose `n` was not used.
+Value rules by `schema`: `number` -> `Number(v)` (NaN -> `<Name> needs a number.`); `date`/`datetime` -> string as given; `user` -> `{ accountId }` via `findUser`; `array` of `string` -> string array; `array` of `user` -> `[{ accountId }]`; `array` with `allowedValues` -> `[{ id }]`; any field with `allowedValues` -> `{ id }` matched on `name ?? value`; custom `com.pyxis.greenhopper.jira:gh-sprint` -> integer; system `parent` -> `{ key }`; rich text (`system` `description`/`environment` or custom containing `textarea`) -> ADF via `markdownToAdf`; otherwise the value unchanged. `findUser`: `GET /rest/api/3/user/search?query=`, active users only, exact case-insensitive match on `displayName` or `emailAddress` first, then a single result, else the ambiguity error; none -> `No Jira user matches "X".` Required check ignores `project`, `issuetype`, `summary` and fields with `hasDefaultValue`. Description drops: description placeholders from `issuePlaceholders` (Task 14; the store rebuilds them from the freshly fetched issue when `fields.updated` changed) whose `n` was not used.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1492,7 +1595,7 @@ git commit -m "feat: add issue_create and issue_update with field resolution" -m
 - Consumes: `registerModules`, `createRuntime` (Task 10), `confluenceModule`, `jiraModule`, `loadConfig`, `defaultConfigDeps` (Task 1)
 - Produces:
   - `sitesTool: ToolDef` (`sites_list`, description `List configured Atlassian sites and what they can reach.`, no inputs)
-  - `coreModule: ProductModule` (`name: 'core'`, tools `[sitesTool]`)
+  - `coreModule: ProductModule` in `src/core/sitesTool.ts` (`name: 'core'`, tools `[sitesTool]`)
   - `createServer(rt: Runtime): McpServer` (name `atlas-lite-mcp`, version from package.json)
   - `packageVersion(): string` (reads `../package.json` relative to `import.meta.url`)
   - `main(argv: string[]): Promise<void>` in `src/index.ts` (first line `#!/usr/bin/env node`): `init` -> Task 17 (stub prints `init is not available yet` until then); `--version`/`-v` -> prints version; `--help`/`-h` -> usage lines; otherwise load config (errors become `configError`, never a crash), connect `StdioServerTransport`, exit 0 when stdin closes
@@ -1523,11 +1626,11 @@ it('answers with the setup sentence when nothing is configured', async () => {
 });
 it('sites_list probes each site and shows defaults', async () => {
   // gumperr: myself 200, spaces 200; qint: unavailable (env QINT_TOKEN is not set)
-  expect((await c.callTool({ name: 'sites_list', arguments: {} })).content[0].text).toBe([
+  expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
     '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
     '| gumperr | gumperr.atlassian.net | jira, confluence | GUM | SD |',
     '| qint | qint.atlassian.net | unavailable: env QINT_TOKEN is not set | - | - |',
-  ].join('\n'));
+  ].join('\n') }]);
 });
 ```
 
@@ -1567,22 +1670,22 @@ git commit -m "feat: wire the stdio server, sites_list and the description budge
 - Test: `test/cli/init.test.ts`
 
 **Interfaces:**
-- Consumes: `createHttpClient` (Task 3), `Site` (Task 1)
+- Consumes: `createHttpClient` (Task 3), `Site`, `configPath` (Task 1)
 - Produces:
   - `interface Prompter { ask(question: string, opts?: { default?: string; secret?: boolean }): Promise<string>; close(): void }`
   - `createPrompter(): Prompter` (readline/promises on stdin/stderr; `secret` answers are not echoed)
-  - `interface InitDeps { prompter: Prompter; out(line: string): void; configPath: string; env: Record<string, string | undefined>; fetch?: typeof fetch; readFile(path: string): string | undefined; writeFile(path: string, data: string): void }` (`writeFile` creates the parent with mode 700 and writes with mode 600, then chmods 600)
+  - `interface InitDeps { prompter: Prompter; out(line: string): void; configPath: string; env: Record<string, string | undefined>; fetch?: typeof fetch; readFile(path: string): string | undefined; writeFile(path: string, data: string): void }` (`writeFile` creates the parent with mode 700 and writes with mode 600, then chmods 600; `index.ts` sets `configPath` to `configPath(process.env, os.homedir())` from Task 1, never a second path rule)
   - `runInit(deps: InitDeps): Promise<number>` (exit code)
 
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-// test/cli/init.test.ts  (scripted prompter answers in order; fetch mocked)
+// test/cli/init.test.ts  (scripted prompter answers in order, default = the answers listed in the first test; `files` seeds existing files for readFile; fetch mocked)
 it('writes sites.json with an env reference, mode handled by writeFile, and verifies products', async () => {
   // answers: name gumperr, url gumperr.atlassian.net, email a@b.c, token GUMPERR_ATLASSIAN_TOKEN, token type '', project GUM, space SD, another 'n'
   const d = deps({ env: { GUMPERR_ATLASSIAN_TOKEN: 'tok-SECRET-123' }, routes: [myselfOk('Andrija Peric'), spacesOk] });
   expect(await runInit(d)).toBe(0);
-  expect(JSON.parse(d.written['/h/.config/atlas-lite-mcp/sites.json'])).toEqual({ sites: [{ name: 'gumperr', baseUrl: 'https://gumperr.atlassian.net', email: 'a@b.c', apiToken: '${GUMPERR_ATLASSIAN_TOKEN}', tokenType: 'classic', defaultJiraProject: 'GUM', defaultConfluenceSpace: 'SD' }] });
+  expect(JSON.parse(d.written['/h/.config/atlas-lite-mcp/sites.json']!)).toEqual({ sites: [{ name: 'gumperr', baseUrl: 'https://gumperr.atlassian.net', email: 'a@b.c', apiToken: '${GUMPERR_ATLASSIAN_TOKEN}', tokenType: 'classic', defaultJiraProject: 'GUM', defaultConfluenceSpace: 'SD' }] });
   expect(d.lines).toContain('gumperr: Jira ok (Andrija Peric), Confluence ok');
   expect(d.lines.join('\n')).toContain('claude mcp add atlas -- npx -y atlas-lite-mcp');
 });
@@ -1592,7 +1695,16 @@ it('asks for the token as a secret and never prints it', async () => {
   expect(d.prompter.ask).toHaveBeenCalledWith(expect.stringMatching(/token/i), expect.objectContaining({ secret: true }));
   expect(d.lines.join('\n')).not.toContain('tok-SECRET-123');
 });
-it('replaces a site with the same name and keeps others', async () => { /* existing file has gumperr and qint -> result has new gumperr and old qint */ });
+it('replaces a site with the same name and keeps others', async () => {
+  const qint = { name: 'qint', baseUrl: 'https://qint.atlassian.net', email: 'q@b.c', apiToken: '${QINT_TOKEN}' };
+  const existing = { sites: [{ name: 'gumperr', baseUrl: 'https://old.atlassian.net', email: 'old@b.c', apiToken: '${OLD_TOKEN}' }, qint] };
+  const d = deps({ env: { GUMPERR_ATLASSIAN_TOKEN: 'tok-SECRET-123' }, routes: [myselfOk('Andrija Peric'), spacesOk], files: { '/h/.config/atlas-lite-mcp/sites.json': JSON.stringify(existing) } });
+  expect(await runInit(d)).toBe(0);
+  const { sites } = JSON.parse(d.written['/h/.config/atlas-lite-mcp/sites.json']!);
+  expect(sites.map((x: { name: string }) => x.name)).toEqual(['gumperr', 'qint']);
+  expect(sites[0]).toMatchObject({ baseUrl: 'https://gumperr.atlassian.net', email: 'a@b.c', apiToken: '${GUMPERR_ATLASSIAN_TOKEN}' });
+  expect(sites[1]).toEqual(qint);
+});
 it('reports unreachable products without failing the write', async () => {
   const d = deps({ routes: [myself401, spaces404] });
   expect(await runInit(d)).toBe(0);
@@ -1611,7 +1723,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Implement `runInit` and `createPrompter`, route `init` in `index.ts`**
 
-Prompts in order: `Site name`, `Site URL (e.g. https://acme.atlassian.net)`, `Atlassian account email`, `API token, or the name of an env variable that holds it` (secret), `Token type, classic or scoped` (default `classic`), `Default Jira project key (optional)`, `Default Confluence space key (optional)`, `Add another site? (y/N)`. URL normalised to `https://<host>`. An answer matching `^[A-Z][A-Z0-9_]*$` is an env variable name stored as `${NAME}`. Verification: `GET /rest/api/3/myself` (shows `displayName`) and `GET /wiki/api/v2/spaces?limit=1`. Final lines: `Wrote /h/.config/atlas-lite-mcp/sites.json (mode 600).` and `Add to Claude Code: claude mcp add atlas -- npx -y atlas-lite-mcp`. Secret echo: a muted output stream that drops writes while the secret question is pending.
+Prompts in order: `Site name`, `Site URL (e.g. https://acme.atlassian.net)`, `Atlassian account email`, `API token, or the name of an env variable that holds it` (secret), `Token type, classic or scoped` (default `classic`), `Default Jira project key (optional)`, `Default Confluence space key (optional)`, `Add another site? (y/N)`. URL normalised to `https://<host>`. An answer matching `^[A-Z][A-Z0-9_]*$` is an env variable name stored as `${NAME}`. An existing site with the same name (case-insensitive) is replaced in place; other sites keep their order. Verification: `GET /rest/api/3/myself` (shows `displayName`) and `GET /wiki/api/v2/spaces?limit=1`. Final lines: `Wrote /h/.config/atlas-lite-mcp/sites.json (mode 600).` and `Add to Claude Code: claude mcp add atlas -- npx -y atlas-lite-mcp`. Secret echo: a muted output stream that drops writes while the secret question is pending.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1630,14 +1742,16 @@ git commit -m "feat: add interactive init that writes and verifies sites.json"
 ### Task 18: Live smoke test
 
 **Files:**
-- Create: `test/smoke/live.test.ts`
+- Create: `vitest.smoke.config.ts`, `test/smoke/live.test.ts`
 
 **Interfaces:**
-- Consumes: `loadConfig`, `defaultConfigDeps` (Task 1), `createRuntime` (Task 10), `createServer` (Task 16), MCP `Client` over `InMemoryTransport`
+- Consumes: `loadConfig`, `defaultConfigDeps` (Task 1), `createRuntime` (Task 10), `createServer` (Task 16), MCP `Client` over `InMemoryTransport`; `test/setup/no-network.ts` and the `"test:smoke": "vitest run --config vitest.smoke.config.ts"` script (Task 1)
 
-- [ ] **Step 1: Write the smoke test**
+- [ ] **Step 1: Write the smoke config and the smoke test**
 
-Enabled only when `ATLAS_SMOKE_PAGE` and `ATLAS_SMOKE_ISSUE` are set and site credentials exist (a config file at the default or `ATLAS_MCP_CONFIG` path, or all three `ATLASSIAN_*` variables); otherwise `describe.skipIf(!enabled)` skips with that reason. Optional `ATLAS_SMOKE_SITE` names the site (default: the only one). It touches only those two objects, never creates pages or issues, and never deletes:
+`vitest.smoke.config.ts`: `include: ['test/smoke/**']`, `setupFiles: ['test/setup/no-network.ts']`, `environment: 'node'`, `testTimeout: 120000` (live calls may wait on 429s). `pnpm test` excludes `test/smoke/**` (Task 1), so this file runs only through `pnpm test:smoke`.
+
+Enabled only when `ATLAS_SMOKE_PAGE`, `ATLAS_SMOKE_ISSUE` and `ATLAS_ALLOW_NETWORK=1` are all set; otherwise `describe.skipIf(!enabled)` skips with that reason. When enabled, sites come from `loadConfig(defaultConfigDeps())` (a config file at the default or `ATLAS_MCP_CONFIG` path, or all three `ATLASSIAN_*` variables). Optional `ATLAS_SMOKE_SITE` names the site (default: the only one). Helpers in the file: `call(name, args)` (`client.callTool`), `text(r)` (the first text content), `cells(line)` (split a markdown table row on unescaped `|`, trim, strip `**`), `labelsOf(issueText)` (the `Labels:` value of the `issue_get` header as an array, `[]` for `-`). It touches only those two objects, never creates pages or issues, and never deletes:
 
 ```ts
 it('page_append then page_edit removes what it appended', async () => {
@@ -1646,27 +1760,63 @@ it('page_append then page_edit removes what it appended', async () => {
   expect(text(await call('page_edit', { url: PAGE, find: marker, replace: marker + '-edited' }))).toMatch(/\(1 replacement\)$/);
   expect(text(await call('page_edit', { url: PAGE, find: `<p>${marker}-edited</p>`, replace: '' }))).toMatch(/\(1 replacement\)$/);
 });
-it('table_update writes a cell and puts the old value back', async () => { /* table_get; when no table exists, skip with a note; else set first body cell of column 2 to old + ' (smoke)' then back to old */ });
-it('page_get outline and section read without errors', async () => { /* format outline; isError false */ });
+it('table_update writes a cell and puts the old value back', async (ctx) => {
+  const t = await call('table_get', { url: PAGE });
+  const lines = text(t).split('\n'); // 'Table 1 (R rows x C cols)', '', header row, separator, first body row
+  if (t.isError || lines.length < 5) { console.warn(`smoke: table_update skipped, no usable table: ${lines[0]}`); return ctx.skip(); }
+  const head = cells(lines[2]!), row = cells(lines[4]!);
+  const [label, column, old] = [row[0]!, head[1]!, row[1]!];
+  expect(text(await call('table_update', { url: PAGE, row: label, column, value: `${old} (smoke)` }))).toMatch(/ \(smoke\), v\d+ -> v\d+$/);
+  expect(text(await call('table_update', { url: PAGE, row: label, column, value: old }))).toContain(`(smoke) -> ${old}, v`);
+});
+it('page_get outline and section read without errors', async () => {
+  const o = await call('page_get', { url: PAGE, format: 'outline' });
+  expect(o.isError).toBeFalsy();
+  const first = text(o).split('\n').find(l => /^\s*h[1-6] /.test(l));
+  if (!first) return; // page without headings: nothing to read by section
+  const s = await call('page_get', { url: PAGE, section: first.trim().slice(3) });
+  expect(s.isError).toBeFalsy();
+  expect(text(s).split('\n')[0]).toMatch(/^# .+ > .+$/);
+});
 it('issue_comment adds a comment', async () => { expect(text(await call('issue_comment', { key: ISSUE, markdown: `atlas-lite-mcp smoke ${new Date().toISOString()}` }))).toMatch(/^Comment \d+ added to /); });
-it('issue_update changes labels and restores them', async () => { /* read labels via issue_get; add 'atlas-smoke'; then restore the original list */ });
-it('issue_transition goes forward and back when allowed', async () => { /* read status; pick the first transition to another status; then transition back to the original status if available, else note it */ });
+it('issue_update changes labels and restores them', async () => {
+  const before = labelsOf(text(await call('issue_get', { key: ISSUE })));
+  expect(text(await call('issue_update', { key: ISSUE, fields: { labels: [...before, 'atlas-smoke'] } }))).toMatch(/^Updated .+: Labels$/);
+  expect(labelsOf(text(await call('issue_get', { key: ISSUE })))).toContain('atlas-smoke');
+  expect(text(await call('issue_update', { key: ISSUE, fields: { labels: before } }))).toMatch(/^Updated .+: Labels$/);
+  expect(labelsOf(text(await call('issue_get', { key: ISSUE }))).sort()).toEqual([...before].sort());
+});
+it('issue_transition goes forward and back when allowed', async () => {
+  const status = /Status: (.+?) \|/.exec(text(await call('issue_get', { key: ISSUE })))![1]!;
+  const probe = await call('issue_transition', { key: ISSUE, to: 'atlas-smoke-no-such-status' });
+  expect(probe.isError).toBe(true); // 'No transition to "..." from <status>. Available: <name> (<to>), ...'
+  const targets = [...(text(probe).split('Available: ')[1] ?? '').matchAll(/\(([^)]+)\)/g)].map(m => m[1]!);
+  const target = targets.find(to => to.toLowerCase() !== status.toLowerCase());
+  if (!target) { console.warn(`smoke: no transition away from ${status}`); return; }
+  expect(text(await call('issue_transition', { key: ISSUE, to: target }))).toContain(`: ${status} -> ${target}`);
+  const back = await call('issue_transition', { key: ISSUE, to: status });
+  if (back.isError) console.warn(`smoke: could not return ${ISSUE} to ${status}: ${text(back)}`);
+  else expect(text(back)).toContain(`: ${target} -> ${status}`);
+});
 ```
 
-- [ ] **Step 2: Verify it skips without credentials**
+- [ ] **Step 2: Verify it skips when not switched on and stays out of `pnpm test`**
 
-Run: `env -u ATLAS_SMOKE_PAGE -u ATLAS_SMOKE_ISSUE pnpm vitest run test/smoke`
+Run: `env -u ATLAS_SMOKE_PAGE -u ATLAS_SMOKE_ISSUE -u ATLAS_ALLOW_NETWORK pnpm test:smoke`
 Expected: all tests skipped, exit 0.
+
+Run: `ATLAS_SMOKE_PAGE=1 ATLAS_SMOKE_ISSUE=GUM-1 pnpm test`
+Expected: PASS, and the output lists no `test/smoke` file.
 
 - [ ] **Step 3: Run it live if the owner has supplied the scratch ids**
 
-Run: `ATLAS_SMOKE_PAGE=<id> ATLAS_SMOKE_ISSUE=<KEY> pnpm test:smoke`
+Run: `ATLAS_ALLOW_NETWORK=1 ATLAS_SMOKE_PAGE=<id> ATLAS_SMOKE_ISSUE=<KEY> pnpm test:smoke`
 Expected: PASS. If the ids are not available, record "smoke not run, ids pending" in the task report and continue. Scoped-token check: if a scoped site is configured, this is where the `/wiki` prefix and `tenant_info` decisions from the endpoint notes get verified; fix `baseUrlFor` if Confluence calls 404.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add test/smoke/live.test.ts
+git add vitest.smoke.config.ts test/smoke/live.test.ts
 git commit -m "test: add opt-in live smoke test for scratch page and issue"
 ```
 
@@ -1683,7 +1833,7 @@ git commit -m "test: add opt-in live smoke test for scratch page and issue"
 
 - [ ] **Step 1: Packaging fields**
 
-`package.json`: `"bin": { "atlas-lite-mcp": "dist/index.js" }`, `"files": ["dist", "README.md", "LICENSE"]`, script `"prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build"`.
+`package.json`: `"bin": { "atlas-lite-mcp": "dist/index.js" }`, `"files": ["dist", "README.md", "LICENSE"]`, script `"prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build"` (`pnpm test` is unit only; the smoke test never runs during publish).
 
 - [ ] **Step 2: LICENSE**
 
@@ -1709,12 +1859,12 @@ Sections, in order: one-paragraph intro (why: fast, local, surgical edits, no Ro
 }
 ```
 
-(Claude Desktop: `claude_desktop_config.json`; Cursor: `~/.cursor/mcp.json` or `.cursor/mcp.json`.) Then: Tools table (17 tools, one line each); Placeholder tokens (`{{atlas:N}} [hint]`, keep them to keep macros, removed ones are reported as `Dropped:`); Safety (no delete tools, every edit is a page version named after the tool, tokens never logged); Troubleshooting (401 expiry, 404 may mean permission, rate limits); Development (`pnpm install`, `pnpm test`, `pnpm build`, smoke test env vars); License MIT. No dashes other than plain hyphens.
+(Claude Desktop: `claude_desktop_config.json`; Cursor: `~/.cursor/mcp.json` or `.cursor/mcp.json`.) Then: Tools table (17 tools, one line each); Placeholder tokens (`{{atlas:N}} [hint]`, keep them to keep macros, removed ones are reported as `Dropped:`); Safety (no delete tools, every edit is a page version named after the tool, tokens never logged); Troubleshooting (401 expiry, 404 may mean permission, rate limits); Development (`pnpm install`, `pnpm test`, `pnpm build`, and the live smoke test `ATLAS_ALLOW_NETWORK=1 ATLAS_SMOKE_PAGE=<id> ATLAS_SMOKE_ISSUE=<KEY> pnpm test:smoke`); License MIT. No dashes other than plain hyphens.
 
 - [ ] **Step 4: Verify build, tests and package contents**
 
 Run: `pnpm typecheck && pnpm test && pnpm build && npm pack --dry-run`
-Expected: tests pass (smoke skipped); the pack listing shows only `package.json`, `README.md`, `LICENSE` and `dist/**` files, `dist/index.js` first line `#!/usr/bin/env node`; no `test/`, `src/`, `docs/`, `.env` or fixtures.
+Expected: tests pass (`pnpm test` does not collect the smoke test); the pack listing shows only `package.json`, `README.md`, `LICENSE` and `dist/**` files, `dist/index.js` first line `#!/usr/bin/env node`; no `test/`, `src/`, `docs/`, `.env` or fixtures.
 
 Run: `node dist/index.js --version`
 Expected: `0.1.0`
@@ -1730,12 +1880,14 @@ git commit -m "docs: add README and MIT license; configure package bin and files
 
 ### Task 20: Release v0.1.0 (GitHub, npm, tag)
 
+Controller merges `v0.1` into `main` (fast-forward) and the task runs on `main`.
+
 **Files:** none changed (unless a check fails).
 
 - [ ] **Step 1: Final gate**
 
-Run: `git status --short && pnpm typecheck && pnpm test && pnpm build && npm pack --dry-run`
-Expected: clean tree, all PASS.
+Run: `git branch --show-current && git status --short && pnpm typecheck && pnpm test && pnpm build && npm pack --dry-run`
+Expected: `main`, clean tree, all PASS.
 
 - [ ] **Step 2: Create the public GitHub repo and push**
 
