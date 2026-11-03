@@ -71,3 +71,70 @@ export async function spaceKeyForId(rt: SiteRuntime, spaceId: string): Promise<s
   rt.cache.set(cacheKey, res.key);
   return res.key;
 }
+
+/** The v2 space id for a space key, cached per site for the process lifetime. */
+export async function spaceIdForKey(rt: SiteRuntime, key: string): Promise<string> {
+  const cacheKey = `confluence:spaceId:${rt.site.name}:${key}`;
+  const cached = rt.cache.get(cacheKey);
+  if (typeof cached === 'string') return cached;
+  const res = await rt.http.request<{ results?: { id: string | number }[] }>('confluence', 'GET', '/wiki/api/v2/spaces', {
+    query: { keys: key },
+    notFound: `space ${key}`,
+  });
+  const space = res.results?.[0];
+  if (space === undefined) throw new AtlasError(`No Confluence space "${key}" on site ${rt.site.name}.`);
+  const id = String(space.id);
+  rt.cache.set(cacheKey, id);
+  return id;
+}
+
+/** Creates a current page from storage XHTML; v2 POST takes no version message. */
+export async function createPage(
+  rt: SiteRuntime,
+  input: { spaceId: string; title: string; storage: string; parentId?: string },
+): Promise<{ id: string; version: number; url: string }> {
+  const res = await rt.http.request<{ id: string | number; version?: { number?: number }; _links?: { webui?: string } }>(
+    'confluence',
+    'POST',
+    '/wiki/api/v2/pages',
+    {
+      body: {
+        spaceId: input.spaceId,
+        status: 'current',
+        title: input.title,
+        ...(input.parentId !== undefined && { parentId: input.parentId }),
+        body: { representation: 'storage', value: input.storage },
+      },
+      notFound: input.parentId === undefined ? `space ${input.spaceId}` : `space ${input.spaceId} or parent page ${input.parentId}`,
+    },
+  );
+  const id = String(res.id);
+  const webui = res._links?.webui ?? `/pages/viewpage.action?pageId=${id}`;
+  return { id, version: res.version?.number ?? 1, url: `${rt.site.baseUrl}/wiki${webui}` };
+}
+
+interface SearchResponse {
+  results?: { id: string | number; title: string; space?: { key?: string }; version?: { when?: string } }[];
+}
+
+/** CQL search through REST v1; `modified` is the date part of the last version. */
+export async function searchPages(rt: SiteRuntime, cql: string, limit: number): Promise<{ id: string; title: string; space: string; modified: string }[]> {
+  const res = await rt.http.request<SearchResponse>('confluence', 'GET', '/wiki/rest/api/content/search', {
+    query: { cql, limit, expand: 'space,version' },
+  });
+  return (res.results ?? []).map((r) => ({
+    id: String(r.id),
+    title: r.title,
+    space: r.space?.key ?? '',
+    modified: (r.version?.when ?? '').slice(0, 10),
+  }));
+}
+
+/** Adds a footer comment in storage XHTML; returns the comment id. */
+export async function addFooterComment(rt: SiteRuntime, pageId: string, storage: string): Promise<string> {
+  const res = await rt.http.request<{ id: string | number }>('confluence', 'POST', '/wiki/api/v2/footer-comments', {
+    body: { pageId, body: { representation: 'storage', value: storage } },
+    notFound: `page ${pageId}`,
+  });
+  return String(res.id);
+}
