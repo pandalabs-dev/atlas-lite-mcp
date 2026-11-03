@@ -59,3 +59,15 @@ export async function putPage(rt: SiteRuntime, page: PageData, storage: string, 
   });
   return res?.version?.number ?? next;
 }
+
+/** The space key for a v2 space id, cached per site for the process lifetime. */
+export async function spaceKeyForId(rt: SiteRuntime, spaceId: string): Promise<string> {
+  const cacheKey = `confluence:spaceKey:${rt.site.name}:${spaceId}`;
+  const cached = rt.cache.get(cacheKey);
+  if (typeof cached === 'string') return cached;
+  const res = await rt.http.request<{ key: string }>('confluence', 'GET', `/wiki/api/v2/spaces/${encodeURIComponent(spaceId)}`, {
+    notFound: `space ${spaceId}`,
+  });
+  rt.cache.set(cacheKey, res.key);
+  return res.key;
+}
