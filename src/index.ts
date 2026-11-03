@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { defaultConfigDeps, loadConfig } from './core/config.js';
+import { createPrompter, runInit, writePrivateFile } from './cli/init.js';
+import { configPath, defaultConfigDeps, loadConfig } from './core/config.js';
 import { log } from './core/log.js';
 import { createRuntime, type Runtime } from './core/runtime.js';
 import { createServer, packageVersion } from './server.js';
@@ -19,8 +21,15 @@ const USAGE = [
 export async function main(argv: string[]): Promise<void> {
   const cmd = argv[0];
   if (cmd === 'init') {
-    log('init is not available yet');
-    process.exit(1);
+    const code = await runInit({
+      prompter: createPrompter(),
+      out: log,
+      configPath: configPath(process.env, homedir()),
+      env: process.env,
+      readFile: defaultConfigDeps().readFile,
+      writeFile: writePrivateFile,
+    });
+    process.exit(code);
   }
   if (cmd === '--version' || cmd === '-v') {
     process.stdout.write(packageVersion() + '\n');
