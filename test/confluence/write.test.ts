@@ -36,6 +36,15 @@ describe('getPage', () => {
     expect(calls[0]!.url).toBe('https://gumperr.atlassian.net/wiki/api/v2/pages/7?body-format=storage');
   });
 
+  it('fails instead of treating a missing body as empty, so nothing is written', async () => {
+    const { json } = getPage13 as { json: Record<string, unknown> };
+    const { rt, calls } = testRuntime([{ ...getPage13, json: { ...json, body: {} } }, { method: 'PUT', path: PAGE, json: { version: { number: 14 } } }]);
+    const msg = 'Page "Costs" returned no storage body; retry or check that the page is a normal page.';
+    await expect(getPage(rt.resolve({}), '7')).rejects.toThrow(msg);
+    await expect(writePage(rt.resolve({}), '7', 'page_append', (p) => ({ storage: p.storage + '<p>new</p>' }))).rejects.toThrow(msg);
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'GET']);
+  });
+
   it('getPage names the page in 404 errors', async () => {
     const { rt: rt404 } = testRuntime([{ method: 'GET', path: '/wiki/api/v2/pages/9', status: 404, json: {} }]);
     await expect(getPage(rt404.resolve({}), '9')).rejects.toThrow('Not found on site gumperr: page 9. Atlassian also returns 404 when the account lacks permission.');
@@ -54,7 +63,7 @@ describe('writePage', () => {
   it('PUTs version + 1 with the tool message and the full required body', async () => {
     const { rt, calls } = testRuntime([getPage13, { method: 'PUT', path: PAGE, json: { version: { number: 14 } } }]);
     const r = await writePage(rt.resolve({}), '7', 'page_edit', (p) => ({ ...aToB(p), note: '1 replacement' }));
-    expect(r).toMatchObject({ from: 13, to: 14, note: '1 replacement', page: { title: 'Costs', version: 13 } });
+    expect(r).toMatchObject({ from: 13, to: 14, unchanged: false, note: '1 replacement', page: { title: 'Costs', version: 13 } });
     expect(calls[1]!.method).toBe('PUT');
     expect(calls[1]!.body).toEqual({ id: '7', status: 'current', title: 'Costs', body: { representation: 'storage', value: '<p>b</p>' }, version: { number: 14, message: 'atlas-lite-mcp page_edit' } });
   });
@@ -84,6 +93,13 @@ describe('writePage', () => {
     const { rt, calls } = testRuntime([getPage13, { method: 'PUT', path: PAGE, status: 400, json: { errors: [{ title: 'Bad body' }] } }]);
     await expect(writePage(rt.resolve({}), '7', 'page_edit', aToB)).rejects.toThrow('Site gumperr rejected the request (400): Bad body.');
     expect(calls).toHaveLength(2);
+  });
+
+  it('skips the PUT when the transform leaves the body as it was', async () => {
+    const { rt, calls } = testRuntime([getPage13, { method: 'PUT', path: PAGE, json: { version: { number: 14 } } }]);
+    const r = await writePage(rt.resolve({}), '7', 'page_edit', (p) => ({ storage: p.storage }));
+    expect(r).toMatchObject({ from: 13, to: 13, unchanged: true });
+    expect(calls.map((c) => c.method)).toEqual(['GET']);
   });
 
   it('writes nothing when the result is malformed', async () => {

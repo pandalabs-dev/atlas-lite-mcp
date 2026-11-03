@@ -1,3 +1,4 @@
+import { AtlasError } from '../core/errors.js';
 import type { SiteRuntime } from '../core/runtime.js';
 
 /** A Confluence page with its storage body, as the write path needs it. */
@@ -27,12 +28,17 @@ export async function getPage(rt: SiteRuntime, id: string): Promise<PageData> {
     query: { 'body-format': 'storage' },
     notFound: `page ${id}`,
   });
+  const storage = res.body?.storage?.value;
+  // Building a write on an empty stand-in would replace the live body, so a missing body fails.
+  if (typeof storage !== 'string') {
+    throw new AtlasError(`Page "${res.title || id}" returned no storage body; retry or check that the page is a normal page.`);
+  }
   const page: PageData = {
     id: String(res.id),
     title: res.title,
     spaceId: String(res.spaceId),
     version: res.version.number,
-    storage: res.body?.storage?.value ?? '',
+    storage,
   };
   if (res._links?.webui !== undefined) page.webui = res._links.webui;
   return page;

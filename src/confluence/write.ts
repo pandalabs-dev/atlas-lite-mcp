@@ -10,13 +10,15 @@ export interface WriteResult {
   page: PageData;
   from: number;
   to: number;
+  /** True when the transform left the body as it was; nothing was written and `to === from`. */
+  unchanged: boolean;
   note?: string;
 }
 
 /**
  * The one Confluence write path (spec 6.1): fetch storage and version, apply a pure transform,
  * check well-formedness, PUT version + 1 with `atlas-lite-mcp <tool>`. On 409 it re-fetches once,
- * re-applies the transform and retries.
+ * re-applies the transform and retries. A transform that leaves the body as it was writes nothing.
  */
 export async function writePage(rt: SiteRuntime, pageId: string, tool: string, transform: PageTransform): Promise<WriteResult> {
   const message = `atlas-lite-mcp ${tool}`;
@@ -45,9 +47,14 @@ export async function writePage(rt: SiteRuntime, pageId: string, tool: string, t
 }
 
 async function attempt(rt: SiteRuntime, page: PageData, change: ReturnType<PageTransform>, message: string): Promise<WriteResult> {
-  assertWellFormed(change.storage);
-  const to = await putPage(rt, page, change.storage, message);
-  const result: WriteResult = { page, from: page.version, to };
+  let result: WriteResult;
+  if (change.storage === page.storage) {
+    result = { page, from: page.version, to: page.version, unchanged: true };
+  } else {
+    assertWellFormed(change.storage);
+    const to = await putPage(rt, page, change.storage, message);
+    result = { page, from: page.version, to, unchanged: false };
+  }
   if (change.note !== undefined) result.note = change.note;
   return result;
 }
