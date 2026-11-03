@@ -102,7 +102,7 @@ export function createHttpClient(site: Site, deps: HttpDeps = {}): HttpClient {
     const name = site.name;
     switch (status) {
       case 401:
-        return fail(`Token for site ${name} rejected (401). Tokens expire after at most 365 days; create a new one at ${TOKEN_URL} and update sites.json.`, status);
+        return fail(`Token or email for site ${name} rejected (401). Check the email in sites.json; tokens expire after at most 365 days, create a new one at ${TOKEN_URL} and update sites.json.`, status);
       case 403:
         return fail(`Access denied on site ${name} (403): the account may lack access to this product or item, or a scoped token is missing a scope.`, status);
       case 404:

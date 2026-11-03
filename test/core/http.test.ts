@@ -158,7 +158,7 @@ describe('createHttpClient', () => {
 
   it('maps 401 to the expiry hint', async () => {
     await expect(reqStatus(401)).rejects.toThrow(
-      'Token for site gumperr rejected (401). Tokens expire after at most 365 days; create a new one at id.atlassian.com/manage-profile/security/api-tokens and update sites.json.',
+      'Token or email for site gumperr rejected (401). Check the email in sites.json; tokens expire after at most 365 days, create a new one at id.atlassian.com/manage-profile/security/api-tokens and update sites.json.',
     );
   });
 
