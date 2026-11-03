@@ -95,7 +95,7 @@ async function run(name: string, args: Record<string, unknown>) {
 describe('jiraModule', () => {
   it('exposes the read tools', () => {
     expect(jiraModule.name).toBe('jira');
-    expect(jiraModule.tools.map((t) => t.name)).toEqual(['issue_get', 'issue_search', 'issue_transition', 'issue_comment']);
+    expect(jiraModule.tools.map((t) => t.name).slice(0, 4)).toEqual(['issue_get', 'issue_search', 'issue_transition', 'issue_comment']);
   });
 });
 

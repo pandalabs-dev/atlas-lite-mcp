@@ -1,5 +1,6 @@
 import type { SiteRuntime } from '../core/runtime.js';
 import type { AdfDoc } from './adf/toMarkdown.js';
+import { normalizeCreateMeta, normalizeEditMeta, type FieldMeta } from './fields.js';
 
 export interface JiraIssue {
   id: string;
@@ -22,6 +23,8 @@ export interface JiraTransition {
 /** The fields an `issue_search` row shows. */
 const SEARCH_FIELDS = ['summary', 'issuetype', 'status', 'assignee'];
 const MAX_PAGE = 100;
+/** Page size for the createmeta endpoints. */
+const META_PAGE = 200;
 
 const issuePath = (key: string) => `/rest/api/3/issue/${encodeURIComponent(key)}`;
 
@@ -89,4 +92,59 @@ export async function addComment(rt: SiteRuntime, key: string, body: AdfDoc): Pr
     notFound: `issue ${key}`,
   });
   return String(res.id);
+}
+
+const createMetaPath = (project: string) => `/rest/api/3/issue/createmeta/${encodeURIComponent(project)}/issuetypes`;
+
+/** Reads every page of a createmeta listing; a page without `total` is taken as the last one. */
+async function metaPages<T>(rt: SiteRuntime, path: string, notFound: string, read: (page: unknown) => T[]): Promise<T[]> {
+  const items: T[] = [];
+  for (;;) {
+    const page = await rt.http.request<{ total?: number }>('jira', 'GET', path, {
+      query: { startAt: items.length, maxResults: META_PAGE },
+      notFound,
+    });
+    const batch = read(page);
+    items.push(...batch);
+    if (batch.length === 0 || typeof page?.total !== 'number' || items.length >= page.total) return items;
+  }
+}
+
+async function cached<T>(rt: SiteRuntime, cacheKey: string, load: () => Promise<T>): Promise<T> {
+  if (rt.cache.has(cacheKey)) return rt.cache.get(cacheKey) as T;
+  const value = await load();
+  rt.cache.set(cacheKey, value);
+  return value;
+}
+
+/** The issue types a project offers for create, cached per site and project for the process lifetime. */
+export function projectIssueTypes(rt: SiteRuntime, project: string): Promise<{ id: string; name: string }[]> {
+  return cached(rt, `jira:issueTypes:${rt.site.name}:${project}`, () =>
+    metaPages(rt, createMetaPath(project), `project ${project}`, (page) => {
+      const p = (page ?? {}) as { issueTypes?: unknown; values?: unknown };
+      const list = p.issueTypes ?? p.values;
+      return Array.isArray(list) ? (list as { id: string | number; name: string }[]).map((t) => ({ id: String(t.id), name: t.name })) : [];
+    }),
+  );
+}
+
+/** Create-screen fields for a project and issue type, cached per site, project and type for the process lifetime. */
+export function createMeta(rt: SiteRuntime, project: string, issueTypeId: string): Promise<FieldMeta[]> {
+  return cached(rt, `jira:createMeta:${rt.site.name}:${project}:${issueTypeId}`, () =>
+    metaPages(rt, `${createMetaPath(project)}/${encodeURIComponent(issueTypeId)}`, `issue type ${issueTypeId} in ${project}`, normalizeCreateMeta),
+  );
+}
+
+/** The fields editable on this issue right now; not cached, since they follow the issue's status and type. */
+export async function editMeta(rt: SiteRuntime, key: string): Promise<FieldMeta[]> {
+  return normalizeEditMeta(await rt.http.request<unknown>('jira', 'GET', `${issuePath(key)}/editmeta`, { notFound: `issue ${key}` }));
+}
+
+export async function createIssue(rt: SiteRuntime, fields: Record<string, unknown>): Promise<{ key: string }> {
+  const res = await rt.http.request<{ key: string }>('jira', 'POST', '/rest/api/3/issue', { body: { fields } });
+  return { key: res.key };
+}
+
+export async function updateIssue(rt: SiteRuntime, key: string, fields: Record<string, unknown>): Promise<void> {
+  await rt.http.request<undefined>('jira', 'PUT', issuePath(key), { body: { fields }, notFound: `issue ${key}` });
 }
