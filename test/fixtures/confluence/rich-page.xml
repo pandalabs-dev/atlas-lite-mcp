@@ -1,0 +1,15 @@
+<h1>Overview</h1>
+<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="m-toc"/>
+<p>Status: <ac:structured-macro ac:name="status" ac:schema-version="1" ac:macro-id="m-st"><ac:parameter ac:name="title">ON TRACK</ac:parameter><ac:parameter ac:name="colour">Green</ac:parameter></ac:structured-macro> for R&amp;D&nbsp;team <ac:emoticon ac:name="smile"/></p>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="m-info"><ac:rich-text-body><p>Budget is <strong>frozen</strong>.</p></ac:rich-text-body></ac:structured-macro>
+<h2>Budget</h2>
+<p>Numbers in CHF.</p>
+<table data-layout="default"><colgroup><col/><col/><col/></colgroup><tbody><tr><th><p><strong>Item</strong></p></th><th><p><strong>Q1&nbsp;2026</strong></p></th><th><p><strong>Q2</strong></p></th></tr><tr><td><p>Hosting</p></td><td><p>100</p></td><td><p>120</p></td></tr><tr><td><p>Licences</p></td><td><p><strong>40</strong></p></td><td><p>40</p></td></tr><tr><td><p>Support </p></td><td><p><ac:structured-macro ac:name="status" ac:schema-version="1" ac:macro-id="m-st2"><ac:parameter ac:name="title">TBD</ac:parameter></ac:structured-macro></p></td><td><p/></td></tr></tbody></table>
+<h3>Notes</h3>
+<p>See <a href="https://example.com/a?b=1&amp;c=2">the sheet</a> and <code>cfg.json</code>.</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="m-code"><ac:parameter ac:name="language">ts</ac:parameter><ac:plain-text-body><![CDATA[if (a < b && c) {}]]></ac:plain-text-body></ac:structured-macro>
+<h2>Team</h2>
+<p>Two columns below.</p>
+<ac:layout><ac:layout-section ac:type="two_equal"><ac:layout-cell><h2>Left</h2><p>Ana</p><ac:image ac:width="200"><ri:attachment ri:filename="ana.png"/></ac:image></ac:layout-cell><ac:layout-cell><h2>Right</h2><p>Marko</p></ac:layout-cell></ac:layout-section></ac:layout>
+<h2>Done</h2>
+<ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>complete</ac:task-status><ac:task-body>Ship</ac:task-body></ac:task></ac:task-list>
