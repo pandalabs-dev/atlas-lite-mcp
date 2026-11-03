@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough, Writable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPrompter, runInit, writePrivateFile, type InitDeps } from '../../src/cli/init.js';
+import { createPrompter, InputEndedError, runInit, writePrivateFile, type InitDeps } from '../../src/cli/init.js';
 import { mockFetch, type Call, type Route } from '../helpers/fetch.js';
 
 const PATH = '/h/.config/atlas-lite-mcp/sites.json';
@@ -33,7 +34,7 @@ function deps(opts: Opts = {}) {
   const answers = [...(opts.answers ?? DEFAULT_ANSWERS)];
   const ask = vi.fn<Ask>(async () => {
     const next = answers.shift();
-    if (next === undefined) throw new Error('scripted prompter ran out of answers');
+    if (next === undefined) throw new InputEndedError();
     return next;
   });
   const prompter = { ask, close: vi.fn() };
@@ -197,6 +198,16 @@ describe('runInit', () => {
     const d = await runInitWith({ answers: ['gumperr'] });
     expect(d.code).toBe(1);
     expect(d.written).toEqual({});
+    expect(d.lines).toEqual([`Setup stopped before it finished; ${PATH} was not changed.`]);
+    expect(d.prompter.close).toHaveBeenCalled();
+  });
+
+  it('reports any other prompter fault with its own message', async () => {
+    const d = deps();
+    d.prompter.ask.mockRejectedValueOnce(new Error('terminal exploded'));
+    expect(await runInit(d)).toBe(1);
+    expect(d.written).toEqual({});
+    expect(d.lines).toEqual(['init failed: terminal exploded']);
     expect(d.prompter.close).toHaveBeenCalled();
   });
 });
@@ -232,6 +243,49 @@ describe('createPrompter', () => {
   it('constructs and closes', () => {
     const p = createPrompter();
     expect(typeof p.ask).toBe('function');
+    p.close();
+  });
+
+  function tty() {
+    const input = Object.assign(new PassThrough(), { isTTY: true });
+    let captured = '';
+    const output = new Writable({
+      write(chunk, _encoding, done) {
+        captured += String(chunk);
+        done();
+      },
+    });
+    return { input, output, captured: () => captured };
+  }
+
+  it('mutes the secret answer and never recalls it from history', async () => {
+    const t = tty();
+    const p = createPrompter(t.input, t.output);
+    try {
+      const secret = p.ask('API token', { secret: true });
+      t.input.write('tok-SECRET-123\r');
+      expect(await secret).toBe('tok-SECRET-123');
+      expect(t.captured()).toContain('API token: ');
+      expect(t.captured()).not.toContain('tok-SECRET-123');
+
+      const name = p.ask('Site name');
+      t.input.write('\x1b[A');
+      t.input.write('gumperr\r');
+      expect(await name).toBe('gumperr');
+      expect(t.captured()).toContain('Site name: ');
+      expect(t.captured()).toContain('gumperr');
+      expect(t.captured()).not.toContain('tok-SECRET-123');
+    } finally {
+      p.close();
+    }
+  });
+
+  it('rejects with InputEndedError when input ends', async () => {
+    const t = tty();
+    const p = createPrompter(t.input, t.output);
+    const answer = p.ask('Site name');
+    t.input.end();
+    await expect(answer).rejects.toBeInstanceOf(InputEndedError);
     p.close();
   });
 });

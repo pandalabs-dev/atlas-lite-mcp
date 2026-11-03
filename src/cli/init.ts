@@ -35,16 +35,25 @@ interface SiteEntry {
 const ENV_NAME = /^[A-Z][A-Z0-9_]*$/;
 const ADD_COMMAND = 'claude mcp add atlas -- npx -y atlas-lite-mcp';
 
-/** Reads lines from stdin, prompts on stderr; echo is dropped while a secret question is pending. */
-export function createPrompter(): Prompter {
+/** Thrown by the prompter when input ends or the user interrupts before an answer arrives. */
+export class InputEndedError extends Error {
+  constructor() {
+    super('input ended');
+    this.name = 'InputEndedError';
+  }
+}
+
+/** Reads answer lines from input, prompts on output; echo is dropped while a secret question is pending. */
+export function createPrompter(input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stderr): Prompter {
   let muted = false;
-  const output = new Writable({
+  const sink = new Writable({
     write(chunk, _encoding, done) {
-      if (!muted) process.stderr.write(chunk);
+      if (!muted) output.write(chunk);
       done();
     },
   });
-  const rl = createInterface({ input: process.stdin, output, terminal: process.stdin.isTTY === true });
+  // historySize 0: a secret answer must never be recalled by the Up key at a later prompt.
+  const rl = createInterface({ input, output: sink, terminal: (input as { isTTY?: boolean }).isTTY === true, historySize: 0 });
   // A queue instead of rl.question, so piped answers that arrive at once are not dropped.
   const queued: string[] = [];
   let pending: ((line: string | undefined) => void) | undefined;
@@ -64,14 +73,18 @@ export function createPrompter(): Prompter {
   return {
     async ask(question, opts = {}) {
       const prompt = `${question}${opts.default ? ` [${opts.default}]` : ''}: `;
-      if (opts.secret) process.stderr.write(prompt);
+      if (opts.secret) output.write(prompt);
       rl.setPrompt(opts.secret ? '' : prompt);
       muted = opts.secret === true;
       rl.prompt();
       const line = queued.length > 0 || closed ? queued.shift() : await new Promise<string | undefined>((r) => (pending = r));
-      if (muted) process.stderr.write('\n');
+      if (muted) {
+        output.write('\n');
+        const history = (rl as unknown as { history?: unknown }).history;
+        if (line !== undefined && Array.isArray(history)) history.splice(0, history.length, ...history.filter((h) => h !== line));
+      }
       muted = false;
-      if (line === undefined) throw new Error('input ended');
+      if (line === undefined) throw new InputEndedError();
       return line.trim() || opts.default || '';
     },
     close: () => rl.close(),
@@ -105,8 +118,8 @@ export async function runInit(deps: InitDeps): Promise<number> {
       else sites.push(entry);
       await verify(entry, deps);
     } while (/^y(es)?$/i.test(await deps.prompter.ask('Add another site? (y/N)')));
-  } catch {
-    deps.out(`Setup stopped before it finished; ${path} was not changed.`);
+  } catch (e) {
+    deps.out(e instanceof InputEndedError ? `Setup stopped before it finished; ${path} was not changed.` : `init failed: ${e instanceof Error ? e.message : String(e)}`);
     return 1;
   } finally {
     deps.prompter.close();
