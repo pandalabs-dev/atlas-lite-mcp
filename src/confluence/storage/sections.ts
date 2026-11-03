@@ -49,7 +49,8 @@ function holdsHeadingAtMost(el: Element, level: number): boolean {
   });
 }
 
-function listNames(names: string[]): string {
+/** Up to five names joined by commas, then `(and N more)`. */
+export function listNames(names: string[]): string {
   const shown = names.slice(0, MAX_CANDIDATES).join(', ');
   return names.length > MAX_CANDIDATES ? `${shown} (and ${names.length - MAX_CANDIDATES} more)` : shown;
 }
@@ -97,7 +98,8 @@ export function findSection(
   return { heading: match, start, end: inner.end };
 }
 
-function ownRows(table: Element): Element[] {
+/** The `tr` elements whose nearest `table` ancestor is `table`, in document order, header row included. */
+export function ownRows(table: Element): Element[] {
   const rows: Element[] = [];
   const walk = (el: Element): void => {
     for (const c of el.children) {
@@ -116,7 +118,7 @@ export function rowCount(table: Element): number {
 }
 
 /** Cells of the widest own row. */
-function colCount(table: Element): number {
+export function colCount(table: Element): number {
   const widths = ownRows(table).map((tr) => tr.children.filter((c) => isTag(c) && (c.name === 'th' || c.name === 'td')).length);
   return Math.max(0, ...widths);
 }
