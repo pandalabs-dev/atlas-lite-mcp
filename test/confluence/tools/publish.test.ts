@@ -86,20 +86,20 @@ describe('page_search', () => {
     const params = new URL(calls[0]!.url).searchParams;
     expect(params.get('limit')).toBe('10');
     expect(params.get('expand')).toBe('space,version');
-    expect(params.get('cql')).toBe('type = page AND space = "SD" AND text ~ "budget"');
+    expect(params.get('cql')).toBe('type = page AND text ~ "budget"');
     expect(text).toBe('| id | title | space | modified |\n| --- | --- | --- | --- |\n| 7 | Costs | SD | 2026-11-01 |');
   });
 
-  it('page_search uses an explicit space and limit over the site default', async () => {
+  it('page_search scopes to an explicit space and limit', async () => {
     const { calls } = await runWithCalls('page_search', { query: 'budget', space: 'QA', limit: 3 });
     const params = new URL(calls[0]!.url).searchParams;
     expect(params.get('limit')).toBe('3');
     expect(params.get('cql')).toBe('type = page AND space = "QA" AND text ~ "budget"');
   });
 
-  it('page_search does not scope by space when the site has no default', async () => {
-    const { calls } = await runNoDefaultSpace('page_search', { query: 'budget' });
-    expect(new URL(calls[0]!.url).searchParams.get('cql')).toBe('type = page AND text ~ "budget"');
+  it('page_search ignores the site default space when space is omitted', async () => {
+    const { calls } = await runWithCalls('page_search', { query: 'title ~ "Costs" ORDER BY lastmodified DESC' });
+    expect(new URL(calls[0]!.url).searchParams.get('cql')).toBe('title ~ "Costs" ORDER BY lastmodified DESC');
   });
 
   it('page_search says when nothing matched', async () => {

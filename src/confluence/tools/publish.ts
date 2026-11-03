@@ -77,8 +77,8 @@ const pageSearch = defineTool({
   },
   async run(args, rt) {
     const srt = rt.resolve(args.site === undefined ? {} : { site: args.site });
-    const space = args.space?.trim() ?? srt.site.defaultConfluenceSpace;
-    const pages = await searchPages(srt, buildCql(args.query, space), args.limit ?? DEFAULT_LIMIT);
+    // No site default here: a search spans all spaces unless space is given.
+    const pages = await searchPages(srt, buildCql(args.query, args.space?.trim()), args.limit ?? DEFAULT_LIMIT);
     if (pages.length === 0) return 'No pages found.';
     return mdTable(['id', 'title', 'space', 'modified'], pages.map((p) => [p.id, p.title, p.space, p.modified]));
   },
