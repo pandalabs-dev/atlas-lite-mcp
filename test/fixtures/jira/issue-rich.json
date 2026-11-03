@@ -1,0 +1,81 @@
+{
+  "description": {
+    "type": "doc",
+    "version": 1,
+    "content": [
+      { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Steps" }] },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Open " },
+          { "type": "text", "text": "login", "marks": [{ "type": "strong" }] },
+          { "type": "text", "text": " then " },
+          { "type": "text", "text": "wait", "marks": [{ "type": "em" }] },
+          { "type": "text", "text": " and run " },
+          { "type": "text", "text": "npm test", "marks": [{ "type": "code" }] },
+          { "type": "text", "text": " see " },
+          { "type": "text", "text": "docs", "marks": [{ "type": "link", "attrs": { "href": "https://x.y" } }] },
+          { "type": "text", "text": " cc " },
+          { "type": "mention", "attrs": { "id": "u1", "text": "@Ana" } }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "one" }] }] },
+          { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "two" }] }] }
+        ]
+      },
+      { "type": "codeBlock", "attrs": { "language": "ts" }, "content": [{ "type": "text", "text": "a < b" }] },
+      {
+        "type": "mediaSingle",
+        "attrs": { "layout": "center" },
+        "content": [{ "type": "media", "attrs": { "id": "f0a1b2c3-0000-4000-8000-000000000001", "type": "file", "collection": "jira-10001", "alt": "shot.png" } }]
+      },
+      {
+        "type": "panel",
+        "attrs": { "panelType": "info" },
+        "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Careful" }] }]
+      },
+      {
+        "type": "table",
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "A" }] }] },
+              { "type": "tableHeader", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "B" }] }] }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "1" }] }] },
+              { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "2" }] }] }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "comments": [
+    {
+      "type": "doc",
+      "version": 1,
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "Looks good " },
+            { "type": "inlineCard", "attrs": { "url": "https://x.y/z" } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "doc",
+      "version": 1,
+      "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Done" }] }]
+    }
+  ]
+}
