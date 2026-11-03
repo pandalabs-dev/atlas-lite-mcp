@@ -235,11 +235,13 @@ class Renderer {
     if (token) return tokenText(token);
     const mark = INLINE_MARKS[node.name];
     if (mark) {
+      // Edge spaces and hard breaks move outside the mark: inside, they would break the emphasis
+      // (a hard break's backslash would escape the closing delimiter).
       const inner = this.inlineChildren(node).replace(/[ \t]+/g, ' ');
-      const core = inner.trim();
+      const lead = /^(?:\s|\\\n)*/.exec(inner)?.[0] ?? '';
+      const trail = /(?:\s|\\\n)*$/.exec(inner.slice(lead.length))?.[0] ?? '';
+      const core = inner.slice(lead.length, inner.length - trail.length);
       if (!core) return inner;
-      const lead = inner.startsWith(' ') ? ' ' : '';
-      const trail = inner.endsWith(' ') ? ' ' : '';
       return `${lead}${mark}${core}${mark}${trail}`;
     }
     switch (node.name) {

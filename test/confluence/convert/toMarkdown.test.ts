@@ -101,6 +101,10 @@ describe('storage to markdown', () => {
     expect(md('<p>a\\<br/>b</p>')).toBe('a\\\\\\\nb');
     expect(md('<ul><li>a<br/>b</li></ul>')).toBe('- a\\\n  b');
     expect(md('<table><tbody><tr><td>a<br/>b</td></tr></tbody></table>')).toBe('| a b |\n| --- |');
+    expect(md('<p><strong>Title<br/></strong>rest</p>')).toBe('**Title**\\\nrest');
+    expect(md('<p>x <em>a<br/></em> y</p>')).toBe('x *a*\\\ny');
+    expect(md('<p>a<em><br/> b</em></p>')).toBe('a\\\n*b*');
+    expect(md('<p><strong>a\\<br/></strong>b</p>')).toBe('**a\\\\**\\\nb');
   });
 
   it('escapes line-start block markers at paragraph start and after a hard break', () => {
