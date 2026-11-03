@@ -74,10 +74,10 @@ describe('server', () => {
     expect(s.isError).toBe(false);
   });
 
-  it('sites_list shows the config error as its answer', async () => {
+  it('sites_list reports the config error as an error', async () => {
     const c = await connect(createRuntime({ error: 'Config file /h/sites.json is not valid JSON; fix it or remove it.' }));
     const s = await c.callTool({ name: 'sites_list', arguments: {} });
-    expect(s).toMatchObject({ isError: false, content: [{ type: 'text', text: 'Config file /h/sites.json is not valid JSON; fix it or remove it.' }] });
+    expect(s).toMatchObject({ isError: true, content: [{ type: 'text', text: 'Config file /h/sites.json is not valid JSON; fix it or remove it.' }] });
   });
 
   it('sites_list probes each site and shows defaults', async () => {
@@ -97,6 +97,28 @@ describe('server', () => {
     expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
       '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
       '| gumperr | gumperr.atlassian.net | jira (confluence: 401) | - | - |',
+    ].join('\n') }]);
+  });
+
+  it('sites_list labels a timed out probe', async () => {
+    const timeout = (): never => { throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' }); };
+    const { rt } = testRuntime([
+      { method: 'GET', path: '/rest/api/3/myself', reply: timeout },
+      { method: 'GET', path: '/wiki/api/v2/spaces', json: { results: [] } },
+    ]);
+    const c = await connect(rt);
+    expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
+      '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
+      '| gumperr | gumperr.atlassian.net | confluence (jira: timeout) | - | - |',
+    ].join('\n') }]);
+  });
+
+  it('sites_list labels a scoped site whose cloudId lookup fails', async () => {
+    const { rt } = testRuntime([{ method: 'GET', path: '/_edge/tenant_info', json: {} }], [{ ...gumperr, tokenType: 'scoped' }]);
+    const c = await connect(rt);
+    expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
+      '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
+      '| gumperr | gumperr.atlassian.net | none (jira: no cloudId, confluence: no cloudId) | - | - |',
     ].join('\n') }]);
   });
 });

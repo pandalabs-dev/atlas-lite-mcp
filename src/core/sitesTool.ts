@@ -16,7 +16,7 @@ export const sitesTool = defineTool({
   description: 'List configured Atlassian sites and what they can reach.',
   shape: {},
   async run(_args, rt) {
-    if (rt.configError !== undefined) return rt.configError;
+    if (rt.configError !== undefined) throw new AtlasError(rt.configError);
     const sites = rt.sites();
     if (sites.length === 0) return NO_SITES;
     const rows = await Promise.all(
@@ -49,11 +49,14 @@ async function reachable(site: Site, rt: Runtime): Promise<string> {
   return failed.length > 0 ? `${head} (${failed.join(', ')})` : head;
 }
 
-/** The HTTP status when known, else the detail in parentheses, else the first words of the message. */
+/**
+ * A short label for a failed probe: the HTTP status, `timeout`, `no cloudId`, a network error
+ * code such as `ENOTFOUND`, else `unreachable`. Only AtlasError text is read, since it is redacted.
+ */
 function probeFailure(e: unknown): string {
-  if (e instanceof AtlasError && e.status !== undefined) return String(e.status);
-  const message = e instanceof Error ? e.message : String(e);
-  const detail = /\(([^)]+)\)/.exec(message)?.[1];
-  return detail ?? message.split(/\s+/).slice(0, 4).join(' ').replace(/[.;:,]$/, '');
+  if (!(e instanceof AtlasError)) return 'unreachable';
+  if (e.status !== undefined) return String(e.status);
+  if (/timed out/i.test(e.message)) return 'timeout';
+  if (/cloudId/.test(e.message)) return 'no cloudId';
+  return /\(([A-Z][A-Z0-9_]+)\)/.exec(e.message)?.[1] ?? 'unreachable';
 }
-
