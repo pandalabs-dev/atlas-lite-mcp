@@ -66,6 +66,17 @@ describe('storage to markdown', () => {
     expect(md(s).trim()).toBe('{{atlas:1}} [macro: code]');
   });
 
+  it('fences a code macro only at block level and tokenises it inside cells and paragraphs', () => {
+    const code = '<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">ts</ac:parameter><ac:plain-text-body><![CDATA[x = 1\ny = 2]]></ac:plain-text-body></ac:structured-macro>';
+    const s = `<table><tbody><tr><td>${code}</td></tr></tbody></table><p>see ${code}</p><ul><li>${code}</li></ul>`;
+    const r = storageToMarkdown(s);
+    expect(r.markdown).toBe('| {{atlas:1}} [macro: code] |\n| --- |\n\nsee {{atlas:2}} [macro: code]\n\n- ```ts\n  x = 1\n  y = 2\n  ```');
+    expect(r.placeholders.map((x) => [x.n, x.block, x.original])).toEqual([
+      [1, true, code],
+      [2, false, code],
+    ]);
+  });
+
   it('renders a code macro without a language as a plain fence', () => {
     const s = '<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[a  ``` b]]></ac:plain-text-body></ac:structured-macro>';
     expect(md(s)).toBe('````\na  ``` b\n````');
@@ -79,9 +90,26 @@ describe('storage to markdown', () => {
 
   it('renders inline marks, breaks, rules, quotes and pre blocks', () => {
     expect(md('<p><strong>b </strong><em>i</em> <s>s</s> <del>d</del> <b>x</b> <i>y</i></p>')).toBe('**b** *i* ~~s~~ ~~d~~ **x** *y*');
-    expect(md('<p>one<br/>two</p><hr/><blockquote><p>q1</p><p>q2</p></blockquote>')).toBe('one\ntwo\n\n---\n\n> q1\n>\n> q2');
+    expect(md('<p>one<br/>two</p><hr/><blockquote><p>q1</p><p>q2</p></blockquote>')).toBe('one\\\ntwo\n\n---\n\n> q1\n>\n> q2');
     expect(md('<pre>a  &lt;b&gt;\n  c\n</pre>')).toBe('```\na  <b>\n  c\n```');
     expect(md('<h3>T&nbsp;x</h3><p><span>in <u>span</u></span></p>')).toBe('### T x\n\nin span');
+  });
+
+  it('renders br as a CommonMark hard break, dropped at paragraph edges and flattened in cells', () => {
+    expect(md('<p>a<br/>b<br/>c</p>')).toBe('a\\\nb\\\nc');
+    expect(md('<p><br/>a<br/></p>')).toBe('a');
+    expect(md('<p>a\\<br/>b</p>')).toBe('a\\\\\\\nb');
+    expect(md('<ul><li>a<br/>b</li></ul>')).toBe('- a\\\n  b');
+    expect(md('<table><tbody><tr><td>a<br/>b</td></tr></tbody></table>')).toBe('| a b |\n| --- |');
+  });
+
+  it('escapes line-start block markers at paragraph start and after a hard break', () => {
+    expect(md('<p>1. Scope</p><p>- dash</p><p>&gt; quote</p>')).toBe('1\\. Scope\n\n\\- dash\n\n\\> quote');
+    expect(md('<p>## h</p><p>+ plus</p><p>2) two</p><p>a<br/>---<br/>===<br/>- x</p>')).toBe(
+      '\\## h\n\n\\+ plus\n\n2\\) two\n\na\\\n\\---\\\n\\===\\\n\\- x',
+    );
+    expect(md('<ul><li><p>1. nested</p></li></ul><blockquote><p>- q</p></blockquote>')).toBe('- 1\\. nested\n\n> \\- q');
+    expect(md('<p>#tag 1.5 -x a - b</p><h2>1. Intro</h2>')).toBe('#tag 1.5 -x a - b\n\n## 1. Intro');
   });
 
   it('renders nested lists indented under their item', () => {

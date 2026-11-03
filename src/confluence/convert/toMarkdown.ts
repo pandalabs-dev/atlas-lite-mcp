@@ -33,9 +33,28 @@ function fence(lang: string, body: string): string {
   return `${ticks}${lang}\n${body}\n${ticks}`;
 }
 
-/** Inline output with whitespace collapsed and line breaks kept tight. */
+const HARD_BREAK = '\\\n';
+
+/** Inline output with whitespace collapsed, line breaks kept tight and no hard break at either edge. */
 function tidyInline(text: string): string {
-  return text.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
+  return text
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/^\s*(?:\\\n\s*)+|(?:\s*\\\n)+\s*$/g, '')
+    .trim();
+}
+
+/**
+ * Escapes text at the start of a paragraph line (paragraph start or after a hard break) that would
+ * otherwise parse as a heading, list item, blockquote, thematic break or setext underline.
+ */
+function escapeLineStart(line: string): string {
+  if (/^(?:#{1,6}|[-+]|=+|-+)(?:\s|\\?$)/.test(line) || line.startsWith('>')) return `\\${line}`;
+  return line.replace(/^(\d+)([.)])(?=\s|$)/, '$1\\$2');
+}
+
+function paragraph(text: string): string {
+  return tidyInline(text).split('\n').map(escapeLineStart).join('\n');
 }
 
 function indent(text: string, by: number): string {
@@ -90,7 +109,7 @@ class Renderer {
     const out: string[] = [];
     let inline = '';
     const flush = (): void => {
-      const text = tidyInline(inline);
+      const text = paragraph(inline);
       if (text) out.push(text);
       inline = '';
     };
@@ -129,7 +148,7 @@ class Renderer {
     }
     switch (el.name) {
       case 'p': {
-        const text = tidyInline(this.inlineChildren(el));
+        const text = paragraph(this.inlineChildren(el));
         return text ? [text] : [];
       }
       case 'ul':
@@ -189,7 +208,7 @@ class Renderer {
     const rows = this.rows(el).map((tr) =>
       tr.children
         .filter((c): c is Element => isTag(c) && (c.name === 'th' || c.name === 'td') && this.overlap(c) !== 'out')
-        .map((cell) => this.blocks(cell.children).join(' ').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|')),
+        .map((cell) => this.blocks(cell.children).join(' ').replaceAll(HARD_BREAK, ' ').replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|')),
     );
     const width = Math.max(0, ...rows.map((r) => r.length));
     if (width === 0) return '';
@@ -214,7 +233,6 @@ class Renderer {
     if (!isTag(node)) return '';
     const token = this.token(node);
     if (token) return tokenText(token);
-    if (isPlainCodeMacro(node)) return codeSpan(textOf(node.children.find((c) => isTag(c) && c.name === 'ac:plain-text-body') ?? node));
     const mark = INLINE_MARKS[node.name];
     if (mark) {
       const inner = this.inlineChildren(node).replace(/[ \t]+/g, ' ');
@@ -236,7 +254,7 @@ class Renderer {
         return `[${text || escapeText(href)}](${/[\s()]/.test(href) ? `<${href}>` : href})`;
       }
       case 'br':
-        return '\n';
+        return HARD_BREAK;
       default:
         return this.inlineChildren(node);
     }

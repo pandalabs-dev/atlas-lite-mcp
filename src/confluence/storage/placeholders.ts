@@ -15,6 +15,8 @@ export const LAYOUT_TAGS = new Set(['ac:layout', 'ac:layout-section', 'ac:layout
 const MACRO_TAGS = new Set(['ac:structured-macro', 'ac:macro']);
 const PANEL_MACROS = new Set(['info', 'note', 'warning', 'tip', 'panel']);
 const BLOCK_PARENTS = new Set(['ac:layout-cell', 'ac:rich-text-body', 'td', 'th', 'li', 'blockquote']);
+/** Where a fenced code block can stand: not table cells, paragraphs or headings. */
+const FENCE_PARENTS = new Set(['ac:layout-cell', 'ac:rich-text-body', 'li', 'blockquote']);
 const PANEL_TEXT_CHARS = 30;
 const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s[\]]+/gi;
 
@@ -41,9 +43,15 @@ function param(el: Element, name: string): string {
   return p ? textOf(p) : '';
 }
 
-/** A code macro the markdown view shows as a fenced block: a plain-text body and no parameter other than `language`. */
+/**
+ * A code macro the markdown view shows as a fenced block: it sits in a block container (document,
+ * layout cell, rich-text body, list item, blockquote) and has a plain-text body and no parameter
+ * other than `language`. Any other code macro is a placeholder.
+ */
 export function isPlainCodeMacro(el: Element): boolean {
   if (!MACRO_TAGS.has(el.name) || attr(el, 'ac:name') !== 'code') return false;
+  const parent = el.parent;
+  if (parent && !isDocument(parent) && !(isTag(parent) && FENCE_PARENTS.has(parent.name))) return false;
   if (el.children.some((c) => isText(c) && c.data.trim() !== '')) return false;
   const tags = childTags(el);
   const ok = (c: Element): boolean =>
