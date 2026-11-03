@@ -1,6 +1,9 @@
 import type { Site } from './config.js';
 import { AtlasError } from './errors.js';
 
+/** The answer to every call while no site is configured. */
+export const NO_SITES = 'No Atlassian sites are configured. Run "npx atlas-lite-mcp init" or set ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN.';
+
 export interface SiteRequest {
   /** Explicit site, by name or hostname. */
   site?: string;
@@ -14,7 +17,7 @@ export interface SiteRequest {
  */
 export function resolveSite(sites: Site[], req: SiteRequest): Site {
   if (sites.length === 0) {
-    throw new AtlasError('No Atlassian sites are configured. Run "npx atlas-lite-mcp init" or set ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN.');
+    throw new AtlasError(NO_SITES);
   }
   const names = sites.map((s) => s.name).join(', ');
 
