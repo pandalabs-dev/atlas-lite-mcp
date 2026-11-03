@@ -16,7 +16,8 @@ export function parseStorage(storage: string): Document {
   });
 }
 
-function rawText(node: AnyNode): string {
+/** All descendant text and CDATA verbatim, entities decoded in text nodes only (no whitespace normalisation). */
+export function rawText(node: AnyNode): string {
   if (isText(node)) return decodeHTML(node.data);
   // CDATA content is literal: collect its text children without entity decoding.
   if (isCDATA(node)) return node.children.map((c) => (isText(c) ? c.data : '')).join('');
