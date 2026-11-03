@@ -66,6 +66,14 @@ describe('replaceSection', () => {
     expect(r.unknown).toEqual([]);
   });
 
+  it('keeps a markdown link that follows a bare token', () => {
+    const r = replaceSection(page, 'Gallery', '{{atlas:2}} [docs](https://x.y/d)\n\n{{atlas:2}} [ref][d]\n\n[d]: https://x.y/r', tokens(page));
+    expect(r.storage).toBe(
+      `<h2>Gallery</h2><p>${IMAGE} <a href="https://x.y/d">docs</a></p><p>${IMAGE} <a href="https://x.y/r">ref</a></p><h2>Next</h2><p>Tail</p>`,
+    );
+    expect(r.unknown).toEqual([]);
+  });
+
   it('keeps the rich page byte-identical outside the targeted section', () => {
     const rich = fixture('confluence/rich-page.xml');
     const { start, end } = findSection(rich, parseStorage(rich), 'Left');

@@ -1,4 +1,3 @@
-import { TOKEN_RE } from '../../core/placeholders.js';
 import { markdownToStorage } from '../convert/fromMarkdown.js';
 import { parseStorage } from './dom.js';
 import type { StoragePlaceholder } from './placeholders.js';
@@ -6,11 +5,17 @@ import { restoreStorageTokens } from './restore.js';
 import { findSection } from './sections.js';
 
 /**
+ * A token plus its optional hint in markdown source, as `TOKEN_RE`, except that a bracket followed by
+ * `(` or `[` is a markdown link or reference link after a bare token, not a hint, and is kept.
+ */
+const SOURCE_TOKEN_RE = /\{\{atlas:(\d+)\}\}(?: \[[^\]\n]*\](?![(\[]))?/g;
+
+/**
  * Converts markdown written by the model to storage with its tokens restored. Hints are cut from the
  * markdown before parsing, so hint text never turns into links, emphasis or code (whatever it holds).
  */
 function convert(markdown: string, placeholders: Map<number, StoragePlaceholder>): ReturnType<typeof restoreStorageTokens> {
-  const bare = markdown.replace(TOKEN_RE, (_m, digits: string) => `{{atlas:${digits}}}`);
+  const bare = markdown.replace(SOURCE_TOKEN_RE, (_m, digits: string) => `{{atlas:${digits}}}`);
   return restoreStorageTokens(markdownToStorage(bare), placeholders);
 }
 
