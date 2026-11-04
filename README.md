@@ -85,7 +85,7 @@ Names, project keys and space keys here are examples, not built-in defaults. Add
 chmod 600 ~/.config/atlas-lite-mcp/sites.json
 ```
 
-Every tool accepts optional `site`, matched case-insensitively by name or hostname. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, use a bare ID or key with the explicit profile name.
+The 16 page, table and issue tools accept optional `site`, matched case-insensitively by name or hostname; `sites_list` takes no arguments and lists all configured sites. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, use a bare ID or key with the explicit profile name.
 
 ## Scoped tokens
 
@@ -140,7 +140,7 @@ Setup references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Claud
 
 ## Tools
 
-All 17 tools accept optional `site`. Page write tools take `url`, which also accepts a bare page ID. Issue tools take `key`, which also accepts an issue URL. Searches default to 10 pages or 20 issues.
+There are 17 tools: the 16 page, table and issue tools accept optional `site`; `sites_list` takes no arguments and lists all configured sites. Page write tools take `url`, which also accepts a bare page ID. Issue tools take `key`, which also accepts an issue URL. Searches default to 10 pages or 20 issues.
 
 | Tool | Purpose and main inputs |
 | --- | --- |
@@ -166,7 +166,7 @@ All 17 tools accept optional `site`. Page write tools take `url`, which also acc
 
 Markdown reads represent unsupported rich content as `{{atlas:N}} [hint]`, for example `{{atlas:3}} [macro: toc]`. Keep the token in submitted markdown to keep the underlying macro, image, attachment or ADF node; the trailing hint is ignored on restoration. Tokens are scoped to the same site and page or issue, not portable identifiers.
 
-`page_update_section`, `page_append`, `issue_update` descriptions and `issue_comment` restore supported token references. Omitting a token from a replaced section or description removes that content and reports it as `Dropped:`. Unknown tokens are omitted and reported as `Dropped:` too, including on creation. A changed page or issue causes the map to be rebuilt from current content; re-read before editing if it changed, since token numbers are not a conflict-proof edit handle.
+`page_update_section`, `page_append`, `issue_update` descriptions and `issue_comment` restore supported token references. Omitting a token from a replaced section or description removes that content and reports it as `Dropped:`. These four restoration paths omit unknown tokens and report them as `Dropped:`; Jira `issue_create` does the same for unknown description tokens. Confluence `page_create` and `page_comment` do not restore page token references: they treat them as ordinary literal text without a `Dropped:` warning. A changed page or issue causes the map to be rebuilt from current content; re-read before editing if it changed, since token numbers are not a conflict-proof edit handle.
 
 Use `page_get` with `format: storage` and `page_edit` when exact XHTML is needed. Table cell updates refuse macros, images, nested tables and targeted row/column spans instead of flattening them.
 
