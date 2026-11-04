@@ -64,7 +64,7 @@ const { srt } = srtWith([{ method: 'GET', path: USERS, json: [ana] }]);
 
 describe('resolveFields', () => {
   it('matches keys by id or display name and values case-insensitively', async () => {
-    const r = await resolveFields(srt, meta, { priority: 'high', 'story points': '5', Severity: 's2', Components: ['web'], duedate: '2026-12-01', Labels: ['a'] }, 'GUM Bug');
+    const r = await resolveFields(srt, meta, { priority: 'high', 'story points': '5', Severity: 's2', Components: ['web'], duedate: '2026-12-01', Labels: ['a'] }, 'DEMO Bug');
     expect(r.fields).toEqual({ priority: { id: '2' }, customfield_10042: 5, customfield_10050: { id: '1002' }, components: [{ id: '30' }], duedate: '2026-12-01', labels: ['a'] });
     expect(r.names).toEqual(['Priority', 'Story Points', 'Severity', 'Components', 'Due date', 'Labels']);
   });
@@ -77,28 +77,28 @@ describe('resolveFields', () => {
   });
 
   it('rejects unknown values with up to 10 allowed values', async () => {
-    await expect(resolveFields(srt, meta, { Severity: 'S99' }, 'GUM Bug')).rejects.toThrow(
+    await expect(resolveFields(srt, meta, { Severity: 'S99' }, 'DEMO Bug')).rejects.toThrow(
       'Severity has no value "S99". Allowed: S1, S2, S3, S4, S5, S6, S7, S8, S9, S10 (and 2 more).',
     );
   });
 
   it('rejects unknown fields naming the screen', async () => {
-    await expect(resolveFields(srt, meta, { Foo: 1 }, 'GUM Bug')).rejects.toThrow('Field "Foo" is not available for GUM Bug.');
+    await expect(resolveFields(srt, meta, { Foo: 1 }, 'DEMO Bug')).rejects.toThrow('Field "Foo" is not available for DEMO Bug.');
   });
 
   it('requires a numeric sprint id', async () => {
-    await expect(resolveFields(srt, meta, { Sprint: 'Sprint 4' }, 'GUM Bug')).rejects.toThrow('Sprint needs the numeric sprint id.');
-    expect((await resolveFields(srt, meta, { Sprint: '42' }, 'GUM Bug')).fields).toEqual({ customfield_10020: 42 });
+    await expect(resolveFields(srt, meta, { Sprint: 'Sprint 4' }, 'DEMO Bug')).rejects.toThrow('Sprint needs the numeric sprint id.');
+    expect((await resolveFields(srt, meta, { Sprint: '42' }, 'DEMO Bug')).fields).toEqual({ customfield_10020: 42 });
   });
 
   it('rejects a non-numeric number field', async () => {
-    await expect(resolveFields(srt, meta, { 'Story Points': 'many' }, 'GUM Bug')).rejects.toThrow('Story Points needs a number.');
+    await expect(resolveFields(srt, meta, { 'Story Points': 'many' }, 'DEMO Bug')).rejects.toThrow('Story Points needs a number.');
   });
 
   it('shapes parent, rich text and scalar labels', async () => {
-    const r = await resolveFields(srt, meta, { Parent: 'GUM-1', Environment: '**Safari**', labels: 'web' }, 'GUM Bug');
+    const r = await resolveFields(srt, meta, { Parent: 'DEMO-1', Environment: '**Safari**', labels: 'web' }, 'DEMO Bug');
     expect(r.fields).toEqual({
-      parent: { key: 'GUM-1' },
+      parent: { key: 'DEMO-1' },
       environment: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Safari', marks: [{ type: 'strong' }] }] }] },
       labels: ['web'],
     });
@@ -134,8 +134,8 @@ describe('findUser', () => {
 
 describe('required fields', () => {
   it('formats missing required fields', () => {
-    expect(formatMissing('GUM Bug', missingRequired(meta, new Set(['summary'])))).toBe(
-      'Not created: GUM Bug needs these fields:\n- Severity: S1, S2, S3, S4, S5, S6, S7, S8, S9, S10 (and 2 more)',
+    expect(formatMissing('DEMO Bug', missingRequired(meta, new Set(['summary'])))).toBe(
+      'Not created: DEMO Bug needs these fields:\n- Severity: S1, S2, S3, S4, S5, S6, S7, S8, S9, S10 (and 2 more)',
     );
   });
 

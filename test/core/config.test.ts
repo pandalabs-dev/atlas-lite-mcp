@@ -31,17 +31,17 @@ function deps(o: DepsOptions = {}): ConfigDeps & { warn: ReturnType<typeof vi.fn
 }
 
 function site(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { name: 'gumperr', baseUrl: 'https://gumperr.atlassian.net', email: 'a@example.com', apiToken: 'tok-SECRET-123', ...overrides };
+  return { name: 'northstar', baseUrl: 'https://northstar.atlassian.net', email: 'a@example.com', apiToken: 'tok-SECRET-123', ...overrides };
 }
 
 const validFile = { sites: [site()] };
 const twoSites = {
   sites: [
-    site({ apiToken: '${GUMPERR_ATLASSIAN_TOKEN}' }),
-    site({ name: 'qint', baseUrl: 'https://qint.atlassian.net', apiToken: '${QINT_TOKEN}' }),
+    site({ apiToken: '${NORTHSTAR_ATLASSIAN_TOKEN}' }),
+    site({ name: 'bluebird', baseUrl: 'https://bluebird.atlassian.net', apiToken: '${BLUEBIRD_TOKEN}' }),
   ],
 };
-const dupNames = { sites: [site(), site({ name: 'GUMPERR', baseUrl: 'https://other.atlassian.net' })] };
+const dupNames = { sites: [site(), site({ name: 'NORTHSTAR', baseUrl: 'https://other.atlassian.net' })] };
 const badTokenType = { sites: [site({ tokenType: 'oauth' })] };
 const acmeEnv = { ATLASSIAN_URL: 'https://acme.atlassian.net', ATLASSIAN_EMAIL: 'a@b.c', ATLASSIAN_TOKEN: 't' };
 
@@ -57,29 +57,29 @@ function errorOf(run: () => unknown): Error {
 describe('loadConfig', () => {
   it('loads the file named by ATLAS_MCP_CONFIG and expands ${VAR} tokens', () => {
     const file = {
-      sites: [site({ baseUrl: 'https://gumperr.atlassian.net/', apiToken: '${GUMPERR_ATLASSIAN_TOKEN}', defaultJiraProject: 'GUM', defaultConfluenceSpace: 'SD', cloudId: 'c-1' })],
+      sites: [site({ baseUrl: 'https://northstar.atlassian.net/', apiToken: '${NORTHSTAR_ATLASSIAN_TOKEN}', defaultJiraProject: 'DEMO', defaultConfluenceSpace: 'DOCS', cloudId: 'c-1' })],
     };
     const cfg = loadConfig(
-      deps({ files: { '/x/sites.json': JSON.stringify(file) }, env: { ATLAS_MCP_CONFIG: '/x/sites.json', GUMPERR_ATLASSIAN_TOKEN: 'tok-SECRET-123' } }),
+      deps({ files: { '/x/sites.json': JSON.stringify(file) }, env: { ATLAS_MCP_CONFIG: '/x/sites.json', NORTHSTAR_ATLASSIAN_TOKEN: 'tok-SECRET-123' } }),
     );
     expect(cfg.source).toBe('file');
     expect(cfg.path).toBe('/x/sites.json');
     expect(cfg.sites[0]).toMatchObject({
-      name: 'gumperr',
-      baseUrl: 'https://gumperr.atlassian.net',
-      host: 'gumperr.atlassian.net',
+      name: 'northstar',
+      baseUrl: 'https://northstar.atlassian.net',
+      host: 'northstar.atlassian.net',
       apiToken: 'tok-SECRET-123',
       tokenType: 'classic',
-      defaultJiraProject: 'GUM',
-      defaultConfluenceSpace: 'SD',
+      defaultJiraProject: 'DEMO',
+      defaultConfluenceSpace: 'DOCS',
       cloudId: 'c-1',
     });
     expect(cfg.sites[0]?.unavailable).toBeUndefined();
   });
 
   it('normalises baseUrl to its origin', () => {
-    const cfg = loadConfig(deps({ file: { sites: [site({ baseUrl: 'https://gumperr.atlassian.net/wiki/spaces/SD' })] } }));
-    expect(cfg.sites[0]?.baseUrl).toBe('https://gumperr.atlassian.net');
+    const cfg = loadConfig(deps({ file: { sites: [site({ baseUrl: 'https://northstar.atlassian.net/wiki/spaces/DOCS' })] } }));
+    expect(cfg.sites[0]?.baseUrl).toBe('https://northstar.atlassian.net');
   });
 
   it('keeps a token literal unless the whole string is one ${VAR} reference', () => {
@@ -97,14 +97,14 @@ describe('loadConfig', () => {
   });
 
   it('marks a site unavailable when its env reference is unset and keeps the others', () => {
-    const cfg = loadConfig(deps({ file: twoSites, env: { QINT_TOKEN: 'x' } }));
-    expect(cfg.sites.find((s) => s.name === 'gumperr')?.unavailable).toBe('env GUMPERR_ATLASSIAN_TOKEN is not set');
-    expect(cfg.sites.find((s) => s.name === 'qint')?.unavailable).toBeUndefined();
-    expect(cfg.sites.find((s) => s.name === 'qint')?.apiToken).toBe('x');
+    const cfg = loadConfig(deps({ file: twoSites, env: { BLUEBIRD_TOKEN: 'x' } }));
+    expect(cfg.sites.find((s) => s.name === 'northstar')?.unavailable).toBe('env NORTHSTAR_ATLASSIAN_TOKEN is not set');
+    expect(cfg.sites.find((s) => s.name === 'bluebird')?.unavailable).toBeUndefined();
+    expect(cfg.sites.find((s) => s.name === 'bluebird')?.apiToken).toBe('x');
   });
 
   it('rejects duplicate names case-insensitively', () => {
-    expect(() => loadConfig(deps({ file: dupNames }))).toThrow(/Duplicate site name "gumperr"/);
+    expect(() => loadConfig(deps({ file: dupNames }))).toThrow(/Duplicate site name "northstar"/);
   });
 
   it('reports the invalid field path and never the token', () => {
@@ -119,7 +119,7 @@ describe('loadConfig', () => {
   });
 
   it('rejects a baseUrl that is not an http or https URL', () => {
-    expect(() => loadConfig(deps({ file: { sites: [site({ baseUrl: 'gumperr' })] } }))).toThrow(/sites\[0\]\.baseUrl must be a URL/);
+    expect(() => loadConfig(deps({ file: { sites: [site({ baseUrl: 'northstar' })] } }))).toThrow(/sites\[0\]\.baseUrl must be a URL/);
   });
 
   it('throws a parse error naming the path for invalid JSON', () => {
@@ -154,7 +154,7 @@ describe('loadConfig', () => {
 
   it('prefers the file over env and says so once on stderr', () => {
     const d = deps({ file: validFile, mode: 0o600, env: acmeEnv });
-    expect(loadConfig(d).sites.map((s) => s.name)).toEqual(['gumperr']);
+    expect(loadConfig(d).sites.map((s) => s.name)).toEqual(['northstar']);
     expect(d.warn).toHaveBeenCalledTimes(1);
     expect(d.warn).toHaveBeenCalledWith('Using /h/.config/atlas-lite-mcp/sites.json; ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN are ignored.');
   });

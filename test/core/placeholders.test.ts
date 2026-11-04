@@ -28,7 +28,7 @@ describe('placeholders', () => {
   it('PlaceholderStore rebuilds on version change and caches otherwise', () => {
     const s = new PlaceholderStore<Placeholder<string>>();
     const build = vi.fn(() => [p(1, 'x')]);
-    const key = 'confluence:page:gumperr:1';
+    const key = 'confluence:page:northstar:1';
     const first = s.getOrBuild(key, '13', build);
     expect(s.getOrBuild(key, '13', build)).toBe(first);
     expect(s.getOrBuild(key, '14', build).get(1)?.hint).toBe('x');

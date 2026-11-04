@@ -11,7 +11,7 @@ function pageAt(version: number): Route {
   return {
     method: 'GET',
     path: PAGE,
-    json: { id: '7', title: 'Costs', spaceId: '100', version: { number: version }, body: { storage: { value: '<p>a</p>' } }, _links: { webui: '/spaces/SD/pages/7/Costs' } },
+    json: { id: '7', title: 'Costs', spaceId: '100', version: { number: version }, body: { storage: { value: '<p>a</p>' } }, _links: { webui: '/spaces/DOCS/pages/7/Costs' } },
   };
 }
 const getPage13 = pageAt(13);
@@ -32,8 +32,8 @@ async function run409ThenTransformThrows(): Promise<unknown> {
 describe('getPage', () => {
   it('reads the page in storage format', async () => {
     const { rt, calls } = testRuntime([getPage13]);
-    expect(await getPage(rt.resolve({}), '7')).toEqual({ id: '7', title: 'Costs', spaceId: '100', version: 13, storage: '<p>a</p>', webui: '/spaces/SD/pages/7/Costs' });
-    expect(calls[0]!.url).toBe('https://gumperr.atlassian.net/wiki/api/v2/pages/7?body-format=storage');
+    expect(await getPage(rt.resolve({}), '7')).toEqual({ id: '7', title: 'Costs', spaceId: '100', version: 13, storage: '<p>a</p>', webui: '/spaces/DOCS/pages/7/Costs' });
+    expect(calls[0]!.url).toBe('https://northstar.atlassian.net/wiki/api/v2/pages/7?body-format=storage');
   });
 
   it('fails instead of treating a missing body as empty, so nothing is written', async () => {
@@ -47,7 +47,7 @@ describe('getPage', () => {
 
   it('getPage names the page in 404 errors', async () => {
     const { rt: rt404 } = testRuntime([{ method: 'GET', path: '/wiki/api/v2/pages/9', status: 404, json: {} }]);
-    await expect(getPage(rt404.resolve({}), '9')).rejects.toThrow('Not found on site gumperr: page 9. Atlassian also returns 404 when the account lacks permission.');
+    await expect(getPage(rt404.resolve({}), '9')).rejects.toThrow('Not found on site northstar: page 9. Atlassian also returns 404 when the account lacks permission.');
   });
 });
 
@@ -91,7 +91,7 @@ describe('writePage', () => {
 
   it('passes other errors through without retrying', async () => {
     const { rt, calls } = testRuntime([getPage13, { method: 'PUT', path: PAGE, status: 400, json: { errors: [{ title: 'Bad body' }] } }]);
-    await expect(writePage(rt.resolve({}), '7', 'page_edit', aToB)).rejects.toThrow('Site gumperr rejected the request (400): Bad body.');
+    await expect(writePage(rt.resolve({}), '7', 'page_edit', aToB)).rejects.toThrow('Site northstar rejected the request (400): Bad body.');
     expect(calls).toHaveLength(2);
   });
 

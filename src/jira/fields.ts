@@ -140,7 +140,7 @@ async function shapeValue(rt: SiteRuntime, field: FieldMeta, v: unknown): Promis
 
 /**
  * Maps `fields` keys (ids or display names, case-insensitive) to field ids and plain values to the API
- * shape; `label` names the screen in errors, e.g. `GUM Bug`. `names` are the matched display names, one
+ * shape; `label` names the screen in errors, e.g. `DEMO Bug`. `names` are the matched display names, one
  * per field id in the same order as the keys of `fields`; a field given twice keeps the last value.
  * `rt` is only handed to `findUser` for user values.
  */

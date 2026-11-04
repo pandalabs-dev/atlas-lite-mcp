@@ -19,7 +19,7 @@ function pageRoutes(id: string, storage: string): Route[] {
     {
       method: 'GET',
       path,
-      json: { id, title: 'Costs', spaceId: '100', version: { number: 13 }, body: { storage: { value: storage } }, _links: { webui: `/spaces/SD/pages/${id}/Costs` } },
+      json: { id, title: 'Costs', spaceId: '100', version: { number: 13 }, body: { storage: { value: storage } }, _links: { webui: `/spaces/DOCS/pages/${id}/Costs` } },
     },
     { method: 'PUT', path, json: { version: { number: 14 } } },
   ];

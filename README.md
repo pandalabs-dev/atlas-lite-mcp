@@ -50,25 +50,25 @@ atlas-lite-mcp init
 
 Or, without a global install, use `npx -y atlas-lite-mcp init` after publication.
 
-The wizard asks for a site name, URL, email, token or environment-variable name, token type, and optional default Jira project and Confluence space. An uppercase variable name such as `GUMPERR_ATLASSIAN_TOKEN` is saved as an environment reference rather than as a literal token. The token prompt suppresses terminal echo and readline history.
+The wizard asks for a site name, URL, email, token or environment-variable name, token type, and optional default Jira project and Confluence space. An uppercase variable name such as `NORTHSTAR_ATLASSIAN_TOKEN` is saved as an environment reference rather than as a literal token. The token prompt suppresses terminal echo and readline history.
 
 `init` writes `sites.json` with mode `600`, preserving other sites and replacing an existing site with the same name ignoring case. It makes read-only Jira `/myself` and Confluence spaces probes, so it requires network access to verify credentials. A failed probe is reported but does not prevent saving; successful setup is not proof that every tool is permitted. If an environment reference is unset, verification is skipped. Restart the MCP server after changing configuration.
 
 ## Multiple sites
 
-Create `~/.config/atlas-lite-mcp/sites.json` with this example from the configuration spec:
+Create `~/.config/atlas-lite-mcp/sites.json` with this synthetic example:
 
 ```json
 {
   "sites": [
     {
-      "name": "gumperr",
-      "baseUrl": "https://gumperr.atlassian.net",
-      "email": "andrija@example.com",
-      "apiToken": "${GUMPERR_ATLASSIAN_TOKEN}",
+      "name": "northstar",
+      "baseUrl": "https://northstar.atlassian.net",
+      "email": "you@example.com",
+      "apiToken": "${NORTHSTAR_ATLASSIAN_TOKEN}",
       "tokenType": "classic",
-      "defaultJiraProject": "GUM",
-      "defaultConfluenceSpace": "SD"
+      "defaultJiraProject": "DEMO",
+      "defaultConfluenceSpace": "DOCS"
     }
   ]
 }

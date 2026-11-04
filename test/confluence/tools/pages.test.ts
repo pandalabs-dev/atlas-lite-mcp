@@ -14,9 +14,9 @@ const routes: Route[] = [
   {
     method: 'GET',
     path: PAGE,
-    json: { id: '7', title: 'Costs', spaceId: '100', version: { number: 13 }, body: { storage: { value: page } }, _links: { webui: '/spaces/SD/pages/7/Costs' } },
+    json: { id: '7', title: 'Costs', spaceId: '100', version: { number: 13 }, body: { storage: { value: page } }, _links: { webui: '/spaces/DOCS/pages/7/Costs' } },
   },
-  { method: 'GET', path: '/wiki/api/v2/spaces/100', json: { id: '100', key: 'SD' } },
+  { method: 'GET', path: '/wiki/api/v2/spaces/100', json: { id: '100', key: 'DOCS' } },
   { method: 'PUT', path: PAGE, json: { version: { number: 14 } } },
 ];
 
@@ -45,14 +45,14 @@ function lastPut(calls: { method: string; body: any }[]): any {
 
 describe('page_get', () => {
   it('page_get markdown starts with a header line', async () => {
-    const r = await run('page_get', { url: 'https://gumperr.atlassian.net/wiki/spaces/SD/pages/7/Costs' });
+    const r = await run('page_get', { url: 'https://northstar.atlassian.net/wiki/spaces/DOCS/pages/7/Costs' });
     expect(r.isError).toBe(false);
-    expect(r.text.split('\n').slice(0, 3)).toEqual(['# Costs', 'Page 7 in SD, v13', '']);
+    expect(r.text.split('\n').slice(0, 3)).toEqual(['# Costs', 'Page 7 in DOCS, v13', '']);
     expect(r.text).toContain('{{atlas:1}} [macro: toc]');
   });
 
   it('page_get section shows only that section with page-wide numbers', async () => {
-    expect((await run('page_get', { id: '7', section: 'left' })).text).toBe('# Costs > Left\nPage 7 in SD, v13\n\nAna\n\n{{atlas:6}} [image: ana.png]');
+    expect((await run('page_get', { id: '7', section: 'left' })).text).toBe('# Costs > Left\nPage 7 in DOCS, v13\n\nAna\n\n{{atlas:6}} [image: ana.png]');
   });
 
   it('page_get outline and storage', async () => {
@@ -62,7 +62,7 @@ describe('page_get', () => {
 
   it('page_get storage with a section returns that section markup only', async () => {
     const r = await run('page_get', { id: '7', format: 'storage', section: 'Right' });
-    expect(r.text).toBe('# Costs > Right\nPage 7 in SD, v13\n\n<p>Marko</p>');
+    expect(r.text).toBe('# Costs > Right\nPage 7 in DOCS, v13\n\n<p>Marko</p>');
   });
 
   it('page_get refuses a section with the outline format', async () => {
@@ -84,10 +84,10 @@ describe('spaceKeyForId', () => {
   it('caches the space key per site and space id', async () => {
     const { rt, calls } = testRuntime(routes);
     const srt = rt.resolve({});
-    expect(await spaceKeyForId(srt, '100')).toBe('SD');
-    expect(await spaceKeyForId(srt, '100')).toBe('SD');
+    expect(await spaceKeyForId(srt, '100')).toBe('DOCS');
+    expect(await spaceKeyForId(srt, '100')).toBe('DOCS');
     expect(calls.filter((c) => c.url.includes('/spaces/'))).toHaveLength(1);
-    expect(srt.cache.get('confluence:spaceKey:gumperr:100')).toBe('SD');
+    expect(srt.cache.get('confluence:spaceKey:northstar:100')).toBe('DOCS');
   });
 });
 
@@ -116,9 +116,9 @@ describe('page_edit', () => {
   });
 
   it('rejects a URL whose host is not the given site', async () => {
-    const r = await run('page_edit', { url: 'https://qint.atlassian.net/wiki/pages/viewpage.action?pageId=7', find: 'a', replace: 'b', site: 'gumperr' });
+    const r = await run('page_edit', { url: 'https://bluebird.atlassian.net/wiki/pages/viewpage.action?pageId=7', find: 'a', replace: 'b', site: 'northstar' });
     expect(r.isError).toBe(true);
-    expect(r.text).toContain('qint.atlassian.net');
+    expect(r.text).toContain('bluebird.atlassian.net');
   });
 });
 

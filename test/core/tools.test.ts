@@ -7,7 +7,7 @@ import { AtlasError } from '../../src/core/errors.js';
 import { createRuntime } from '../../src/core/runtime.js';
 import type { Placeholder } from '../../src/core/placeholders.js';
 import { defineTool, executeTool, registerModules, siteParam } from '../../src/core/tools.js';
-import { gumperr, testRuntime } from '../helpers/runtime.js';
+import { northstar, testRuntime } from '../helpers/runtime.js';
 
 const { rt } = testRuntime([]);
 const echo = defineTool({ name: 'echo', description: 'Echo.', shape: { text: z.string(), site: siteParam }, run: async (a) => a.text });
@@ -46,21 +46,21 @@ describe('executeTool', () => {
   });
 
   it('passes the site argument through to site resolution', async () => {
-    const qint = { ...gumperr, name: 'qint', baseUrl: 'https://qint.atlassian.net', host: 'qint.atlassian.net' };
-    const { rt: two } = testRuntime([], [gumperr, qint]);
+    const bluebird = { ...northstar, name: 'bluebird', baseUrl: 'https://bluebird.atlassian.net', host: 'bluebird.atlassian.net' };
+    const { rt: two } = testRuntime([], [northstar, bluebird]);
     const which = defineTool({ ...echo, run: async (a, r) => r.resolve({ site: a.site }).site.name });
-    expect(await executeTool(which, { text: 'x', site: 'QINT' }, two)).toEqual({ text: 'qint', isError: false });
-    expect(await executeTool(which, { text: 'x' }, two)).toEqual({ text: 'Several sites are configured; pass site as one of: gumperr, qint.', isError: true });
+    expect(await executeTool(which, { text: 'x', site: 'BLUEBIRD' }, two)).toEqual({ text: 'bluebird', isError: false });
+    expect(await executeTool(which, { text: 'x' }, two)).toEqual({ text: 'Several sites are configured; pass site as one of: northstar, bluebird.', isError: true });
   });
 });
 
 describe('createRuntime', () => {
   it('creates one site runtime per site and reuses it', () => {
     const a = rt.resolve({});
-    expect(a.site.name).toBe('gumperr');
-    expect(rt.resolve({ site: 'gumperr.atlassian.net' })).toBe(a);
-    a.cache.set('confluence:spaceId:gumperr:SD', '100');
-    expect(rt.resolve({ host: 'gumperr.atlassian.net' }).cache.get('confluence:spaceId:gumperr:SD')).toBe('100');
+    expect(a.site.name).toBe('northstar');
+    expect(rt.resolve({ site: 'northstar.atlassian.net' })).toBe(a);
+    a.cache.set('confluence:spaceId:northstar:DOCS', '100');
+    expect(rt.resolve({ host: 'northstar.atlassian.net' }).cache.get('confluence:spaceId:northstar:DOCS')).toBe('100');
   });
 
   it('keeps one placeholder store per product', () => {
@@ -68,9 +68,9 @@ describe('createRuntime', () => {
     const confluence = rt.placeholders.get<Placeholder<string>>('confluence');
     expect(rt.placeholders.get<Placeholder<string>>('confluence')).toBe(confluence);
     expect(rt.placeholders.get('jira')).not.toBe(confluence);
-    confluence.getOrBuild('confluence:page:gumperr:7', '13', () => [p]);
+    confluence.getOrBuild('confluence:page:northstar:7', '13', () => [p]);
     let rebuilt = false;
-    rt.placeholders.get<Placeholder<string>>('confluence').getOrBuild('confluence:page:gumperr:7', '13', () => ((rebuilt = true), []));
+    rt.placeholders.get<Placeholder<string>>('confluence').getOrBuild('confluence:page:northstar:7', '13', () => ((rebuilt = true), []));
     expect(rebuilt).toBe(false);
   });
 });

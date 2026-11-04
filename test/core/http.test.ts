@@ -4,10 +4,10 @@ import { AtlasError } from '../../src/core/errors.js';
 import { baseUrlFor, createHttpClient, type HttpDeps } from '../../src/core/http.js';
 import { mockFetch, type Route } from '../helpers/fetch.js';
 
-const gumperr: Site = {
-  name: 'gumperr',
-  baseUrl: 'https://gumperr.atlassian.net',
-  host: 'gumperr.atlassian.net',
+const northstar: Site = {
+  name: 'northstar',
+  baseUrl: 'https://northstar.atlassian.net',
+  host: 'northstar.atlassian.net',
   email: 'a@b.c',
   apiToken: 'tok-SECRET-123',
   tokenType: 'classic',
@@ -22,7 +22,7 @@ function noSleep() {
 function client(routes: Route[], deps: HttpDeps = {}) {
   const m = mockFetch(routes);
   const sleep = noSleep();
-  return { m, sleep, c: createHttpClient(gumperr, { fetch: m.fetch, sleep, ...deps }) };
+  return { m, sleep, c: createHttpClient(northstar, { fetch: m.fetch, sleep, ...deps }) };
 }
 
 function getMyself(routes: Route[], deps: HttpDeps = {}): Promise<unknown> {
@@ -37,7 +37,7 @@ function reqNetwork(): Promise<unknown> {
   const failing = (async () => {
     throw new TypeError('fetch failed', { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) });
   }) as typeof fetch;
-  return createHttpClient(gumperr, { fetch: failing, sleep: noSleep() }).request('jira', 'GET', MYSELF);
+  return createHttpClient(northstar, { fetch: failing, sleep: noSleep() }).request('jira', 'GET', MYSELF);
 }
 
 async function caught(p: Promise<unknown>): Promise<AtlasError> {
@@ -52,12 +52,12 @@ async function caught(p: Promise<unknown>): Promise<AtlasError> {
 
 describe('baseUrlFor', () => {
   it('uses the site origin for classic tokens', () => {
-    expect(baseUrlFor(gumperr, 'jira')).toBe('https://gumperr.atlassian.net');
-    expect(baseUrlFor(gumperr, 'confluence')).toBe('https://gumperr.atlassian.net');
+    expect(baseUrlFor(northstar, 'jira')).toBe('https://northstar.atlassian.net');
+    expect(baseUrlFor(northstar, 'confluence')).toBe('https://northstar.atlassian.net');
   });
 
   it('uses api.atlassian.com per product for scoped tokens', () => {
-    const scoped: Site = { ...gumperr, tokenType: 'scoped' };
+    const scoped: Site = { ...northstar, tokenType: 'scoped' };
     expect(baseUrlFor(scoped, 'jira', 'c-1')).toBe('https://api.atlassian.com/ex/jira/c-1');
     expect(baseUrlFor(scoped, 'confluence', 'c-1')).toBe('https://api.atlassian.com/ex/confluence/c-1');
     expect(baseUrlFor({ ...scoped, cloudId: 'c-9' }, 'jira')).toBe('https://api.atlassian.com/ex/jira/c-9');
@@ -69,7 +69,7 @@ describe('createHttpClient', () => {
     const { m, c } = client([{ method: 'GET', path: MYSELF, json: { accountId: '1' } }]);
     await expect(c.request('jira', 'GET', MYSELF)).resolves.toEqual({ accountId: '1' });
     const call = m.calls[0]!;
-    expect(call.url).toBe('https://gumperr.atlassian.net/rest/api/3/myself');
+    expect(call.url).toBe('https://northstar.atlassian.net/rest/api/3/myself');
     expect(call.headers.authorization).toBe('Basic ' + Buffer.from('a@b.c:tok-SECRET-123').toString('base64'));
     expect(call.headers.accept).toBe('application/json');
     expect(call.headers['user-agent']).toBe('atlas-lite-mcp');
@@ -82,12 +82,12 @@ describe('createHttpClient', () => {
       { method: 'GET', path: '/ex/jira/c-1/rest/api/3/myself', json: {} },
       { method: 'GET', path: '/ex/confluence/c-1/wiki/api/v2/spaces', json: { results: [] } },
     ]);
-    const c = createHttpClient({ ...gumperr, tokenType: 'scoped' }, { fetch: m.fetch });
+    const c = createHttpClient({ ...northstar, tokenType: 'scoped' }, { fetch: m.fetch });
     await c.request('jira', 'GET', MYSELF);
     await c.request('confluence', 'GET', '/wiki/api/v2/spaces');
     await c.request('jira', 'GET', MYSELF);
     expect(m.calls.map((x) => x.url)).toEqual([
-      'https://gumperr.atlassian.net/_edge/tenant_info',
+      'https://northstar.atlassian.net/_edge/tenant_info',
       'https://api.atlassian.com/ex/jira/c-1/rest/api/3/myself',
       'https://api.atlassian.com/ex/confluence/c-1/wiki/api/v2/spaces',
       'https://api.atlassian.com/ex/jira/c-1/rest/api/3/myself',
@@ -98,7 +98,7 @@ describe('createHttpClient', () => {
 
   it('skips tenant_info when cloudId is configured', async () => {
     const m = mockFetch([{ method: 'GET', path: '/ex/jira/c-9/rest/api/3/myself', json: {} }]);
-    await createHttpClient({ ...gumperr, tokenType: 'scoped', cloudId: 'c-9' }, { fetch: m.fetch }).request('jira', 'GET', MYSELF);
+    await createHttpClient({ ...northstar, tokenType: 'scoped', cloudId: 'c-9' }, { fetch: m.fetch }).request('jira', 'GET', MYSELF);
     expect(m.calls.map((c) => c.url)).toEqual(['https://api.atlassian.com/ex/jira/c-9/rest/api/3/myself']);
   });
 
@@ -108,9 +108,9 @@ describe('createHttpClient', () => {
       { method: 'GET', path: '/_edge/tenant_info', json: { cloudId: 'c-1' } },
       { method: 'GET', path: '/ex/jira/c-1/rest/api/3/myself', json: { ok: true } },
     ]);
-    const c = createHttpClient({ ...gumperr, tokenType: 'scoped' }, { fetch: m.fetch });
+    const c = createHttpClient({ ...northstar, tokenType: 'scoped' }, { fetch: m.fetch });
     await expect(c.request('jira', 'GET', MYSELF)).rejects.toThrow(
-      'Could not resolve the cloudId of site gumperr from /_edge/tenant_info; set cloudId for this site in sites.json.',
+      'Could not resolve the cloudId of site northstar from /_edge/tenant_info; set cloudId for this site in sites.json.',
     );
     await expect(c.request('jira', 'GET', MYSELF)).resolves.toEqual({ ok: true });
   });
@@ -146,53 +146,53 @@ describe('createHttpClient', () => {
       { method: 'GET', path: MYSELF, status: 429, headers: { 'retry-after': '1', 'ratelimit-reason': 'jira-burst-based' } },
     ]);
     const e = await caught(c.request('jira', 'GET', MYSELF));
-    expect(e.message).toBe('Rate limited by site gumperr after 3 retries (jira-burst-based); try again in a minute.');
+    expect(e.message).toBe('Rate limited by site northstar after 3 retries (jira-burst-based); try again in a minute.');
     expect(e.status).toBe(429);
     expect(m.calls).toHaveLength(4);
     expect(sleep).toHaveBeenCalledTimes(3);
   });
 
   it('omits the reason when RateLimit-Reason is absent', async () => {
-    await expect(reqStatus(429)).rejects.toThrow('Rate limited by site gumperr after 3 retries; try again in a minute.');
+    await expect(reqStatus(429)).rejects.toThrow('Rate limited by site northstar after 3 retries; try again in a minute.');
   });
 
   it('maps 401 to the expiry hint', async () => {
     await expect(reqStatus(401)).rejects.toThrow(
-      'Token or email for site gumperr rejected (401). Check the email in sites.json; tokens expire after at most 365 days, create a new one at id.atlassian.com/manage-profile/security/api-tokens and update sites.json.',
+      'Token or email for site northstar rejected (401). Check the email in sites.json; tokens expire after at most 365 days, create a new one at id.atlassian.com/manage-profile/security/api-tokens and update sites.json.',
     );
   });
 
   it('maps 403 naming site and likely causes', async () => {
     await expect(reqStatus(403)).rejects.toThrow(
-      'Access denied on site gumperr (403): the account may lack access to this product or item, or a scoped token is missing a scope.',
+      'Access denied on site northstar (403): the account may lack access to this product or item, or a scoped token is missing a scope.',
     );
   });
 
   it('maps 404 with the caller description and the permission note', async () => {
     const { c } = client([{ method: 'GET', path: '/wiki/api/v2/pages/9', status: 404 }]);
     await expect(c.request('confluence', 'GET', '/wiki/api/v2/pages/9', { notFound: 'page 9' })).rejects.toThrow(
-      'Not found on site gumperr: page 9. Atlassian also returns 404 when the account lacks permission.',
+      'Not found on site northstar: page 9. Atlassian also returns 404 when the account lacks permission.',
     );
   });
 
   it('falls back to the path when no 404 description is given', async () => {
     await expect(reqStatus(404)).rejects.toThrow(
-      'Not found on site gumperr: /rest/api/3/myself. Atlassian also returns 404 when the account lacks permission.',
+      'Not found on site northstar: /rest/api/3/myself. Atlassian also returns 404 when the account lacks permission.',
     );
   });
 
   it('surfaces the first Atlassian error message for other 4xx', async () => {
     await expect(reqStatus(400, { errorMessages: [], errors: { summary: 'You must specify a summary of the issue.' } })).rejects.toThrow(
-      'Site gumperr rejected the request (400): You must specify a summary of the issue.',
+      'Site northstar rejected the request (400): You must specify a summary of the issue.',
     );
     await expect(reqStatus(400, { errorMessages: ['JQL is invalid'], errors: { x: 'second' } })).rejects.toThrow(
-      'Site gumperr rejected the request (400): JQL is invalid.',
+      'Site northstar rejected the request (400): JQL is invalid.',
     );
     await expect(reqStatus(400, { errors: [{ title: 'Version must be incremented' }] })).rejects.toThrow(
-      'Site gumperr rejected the request (400): Version must be incremented.',
+      'Site northstar rejected the request (400): Version must be incremented.',
     );
-    await expect(reqStatus(400, { message: 'Bad thing' })).rejects.toThrow('Site gumperr rejected the request (400): Bad thing.');
-    await expect(reqStatus(400)).rejects.toThrow('Site gumperr rejected the request (400).');
+    await expect(reqStatus(400, { message: 'Bad thing' })).rejects.toThrow('Site northstar rejected the request (400): Bad thing.');
+    await expect(reqStatus(400)).rejects.toThrow('Site northstar rejected the request (400).');
   });
 
   it('keeps the status on errors so callers can react to 409', async () => {
@@ -203,7 +203,7 @@ describe('createHttpClient', () => {
   it('maps 5xx to a try-again message without retrying', async () => {
     const { m, c } = client([{ method: 'GET', path: MYSELF, status: 502 }]);
     const e = await caught(c.request('jira', 'GET', MYSELF));
-    expect(e.message).toBe('Site gumperr returned 502; try again shortly.');
+    expect(e.message).toBe('Site northstar returned 502; try again shortly.');
     expect(e.status).toBe(502);
     expect(m.calls).toHaveLength(1);
   });
@@ -214,8 +214,8 @@ describe('createHttpClient', () => {
       signal = init?.signal ?? undefined;
       throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     }) as typeof fetch;
-    await expect(createHttpClient(gumperr, { fetch: hanging }).request('jira', 'GET', MYSELF)).rejects.toThrow(
-      'Request to site gumperr timed out after 30 s.',
+    await expect(createHttpClient(northstar, { fetch: hanging }).request('jira', 'GET', MYSELF)).rejects.toThrow(
+      'Request to site northstar timed out after 30 s.',
     );
     expect(signal).toBeInstanceOf(AbortSignal);
   });
@@ -225,13 +225,13 @@ describe('createHttpClient', () => {
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
       })) as typeof fetch;
-    await expect(createHttpClient(gumperr, { fetch: waitForAbort, timeoutMs: 5 }).request('jira', 'GET', MYSELF)).rejects.toThrow(
-      /^Request to site gumperr timed out after/,
+    await expect(createHttpClient(northstar, { fetch: waitForAbort, timeoutMs: 5 }).request('jira', 'GET', MYSELF)).rejects.toThrow(
+      /^Request to site northstar timed out after/,
     );
   });
 
   it('names the network error code when the site cannot be reached', async () => {
-    await expect(reqNetwork()).rejects.toThrow('Could not reach site gumperr (ECONNREFUSED).');
+    await expect(reqNetwork()).rejects.toThrow('Could not reach site northstar (ECONNREFUSED).');
   });
 
   it('never includes the token in any error message', async () => {
@@ -244,15 +244,15 @@ describe('createHttpClient', () => {
   });
 
   it('encodes query params and JSON bodies, returns undefined for 204', async () => {
-    const { m, c } = client([{ method: 'PUT', path: '/rest/api/3/issue/GUM-1', status: 204 }]);
-    const r = await c.request('jira', 'PUT', '/rest/api/3/issue/GUM-1', {
+    const { m, c } = client([{ method: 'PUT', path: '/rest/api/3/issue/DEMO-1', status: 204 }]);
+    const r = await c.request('jira', 'PUT', '/rest/api/3/issue/DEMO-1', {
       query: { a: 'x y', b: 2, c: undefined },
       body: { fields: { summary: 'S' } },
     });
     expect(r).toBeUndefined();
     const call = m.calls[0]!;
     expect(call.method).toBe('PUT');
-    expect(call.url).toBe('https://gumperr.atlassian.net/rest/api/3/issue/GUM-1?a=x+y&b=2');
+    expect(call.url).toBe('https://northstar.atlassian.net/rest/api/3/issue/DEMO-1?a=x+y&b=2');
     expect(call.headers['content-type']).toBe('application/json');
     expect(call.body).toEqual({ fields: { summary: 'S' } });
   });

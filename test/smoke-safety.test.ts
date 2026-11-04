@@ -21,9 +21,9 @@ function fixture() {
     state.calls.push(name);
     if (name === 'page_get') {
       faults.get('page_get')?.(args);
-      if (args.format === 'storage') return answer(`# Scratch\nPage 1 in SD, v1\n\n${state.page}`);
-      if (args.format === 'outline') return answer('# Scratch\nPage 1 in SD, v1\n\nh2 Scratch');
-      return answer('# Scratch > Scratch\nPage 1 in SD, v1');
+      if (args.format === 'storage') return answer(`# Scratch\nPage 1 in DOCS, v1\n\n${state.page}`);
+      if (args.format === 'outline') return answer('# Scratch\nPage 1 in DOCS, v1\n\nh2 Scratch');
+      return answer('# Scratch > Scratch\nPage 1 in DOCS, v1');
     }
     if (name === 'page_append') {
       state.page += `<p>${String(args.markdown)}</p>`;
@@ -159,7 +159,7 @@ describe('smoke safety with an offline stateful fake', () => {
   it('fails incomplete table, heading and transition fixtures', async () => {
     const emptyTable: Call = async () => answer('The page has no tables.', true);
     await expect(runTableSmoke(emptyTable, page, cellMarker)).rejects.toThrow(/table/i);
-    const emptyHeading: Call = async () => answer('# Scratch\nPage 1 in SD, v1\n\n');
+    const emptyHeading: Call = async () => answer('# Scratch\nPage 1 in DOCS, v1\n\n');
     await expect(runOutlineSmoke(emptyHeading, page)).rejects.toThrow(/heading/i);
     const noTransition: Call = async (name) => name === 'issue_get'
       ? answer('TST-1\nStatus: Open | Priority: -\nLabels: - | Parent: -')

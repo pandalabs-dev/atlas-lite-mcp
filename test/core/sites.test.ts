@@ -7,63 +7,63 @@ function site(name: string, host: string): Site {
   return { name, baseUrl: `https://${host}`, host, email: 'me@example.com', apiToken: 'tok-SECRET-123', tokenType: 'classic' };
 }
 
-const gumperr = site('gumperr', 'gumperr.atlassian.net');
-const qint = site('qint', 'qint.atlassian.net');
-const two = [gumperr, qint];
+const northstar = site('northstar', 'northstar.atlassian.net');
+const bluebird = site('bluebird', 'bluebird.atlassian.net');
+const two = [northstar, bluebird];
 
 describe('resolveSite', () => {
   it('selects by URL host', () => {
-    expect(resolveSite(two, { host: 'qint.atlassian.net' }).name).toBe('qint');
-    expect(resolveSite(two, { host: 'QINT.atlassian.net' }).name).toBe('qint');
+    expect(resolveSite(two, { host: 'bluebird.atlassian.net' }).name).toBe('bluebird');
+    expect(resolveSite(two, { host: 'BLUEBIRD.atlassian.net' }).name).toBe('bluebird');
   });
 
   it('accepts an explicit site that agrees with the URL host', () => {
-    expect(resolveSite(two, { site: 'qint', host: 'qint.atlassian.net' }).name).toBe('qint');
-    expect(resolveSite(two, { site: 'Qint.Atlassian.net', host: 'qint.atlassian.net' }).name).toBe('qint');
+    expect(resolveSite(two, { site: 'bluebird', host: 'bluebird.atlassian.net' }).name).toBe('bluebird');
+    expect(resolveSite(two, { site: 'Bluebird.Atlassian.net', host: 'bluebird.atlassian.net' }).name).toBe('bluebird');
   });
 
   it('fails when site and URL host disagree', () => {
-    expect(() => resolveSite(two, { site: 'gumperr', host: 'qint.atlassian.net' })).toThrow(/URL belongs to qint\.atlassian\.net but site "gumperr" was given/);
+    expect(() => resolveSite(two, { site: 'northstar', host: 'bluebird.atlassian.net' })).toThrow(/URL belongs to bluebird\.atlassian\.net but site "northstar" was given/);
   });
 
   it('matches site by name or host case-insensitively', () => {
-    expect(resolveSite(two, { site: 'QINT' }).name).toBe('qint');
-    expect(resolveSite(two, { site: 'Gumperr.Atlassian.net' }).name).toBe('gumperr');
+    expect(resolveSite(two, { site: 'BLUEBIRD' }).name).toBe('bluebird');
+    expect(resolveSite(two, { site: 'Northstar.Atlassian.net' }).name).toBe('northstar');
   });
 
   it('prefers a name match over a host match when a name equals another site host', () => {
-    const odd = site('gumperr.atlassian.net', 'odd.atlassian.net');
-    expect(resolveSite([gumperr, odd], { site: 'gumperr.atlassian.net' }).name).toBe('gumperr.atlassian.net');
-    expect(resolveSite([odd, gumperr], { site: 'gumperr.atlassian.net' }).name).toBe('gumperr.atlassian.net');
-    expect(() => resolveSite([gumperr, odd], { site: 'gumperr.atlassian.net', host: 'gumperr.atlassian.net' })).toThrow(
-      /URL belongs to gumperr\.atlassian\.net but site "gumperr\.atlassian\.net" was given/,
+    const odd = site('northstar.atlassian.net', 'odd.atlassian.net');
+    expect(resolveSite([northstar, odd], { site: 'northstar.atlassian.net' }).name).toBe('northstar.atlassian.net');
+    expect(resolveSite([odd, northstar], { site: 'northstar.atlassian.net' }).name).toBe('northstar.atlassian.net');
+    expect(() => resolveSite([northstar, odd], { site: 'northstar.atlassian.net', host: 'northstar.atlassian.net' })).toThrow(
+      /URL belongs to northstar\.atlassian\.net but site "northstar\.atlassian\.net" was given/,
     );
   });
 
   it('reports an unknown site name with configured names', () => {
-    expect(() => resolveSite(two, { site: 'other' })).toThrow('No configured site named "other"; pass site as one of: gumperr, qint.');
+    expect(() => resolveSite(two, { site: 'other' })).toThrow('No configured site named "other"; pass site as one of: northstar, bluebird.');
   });
 
   it('uses the only site when nothing is given', () => {
-    expect(resolveSite([gumperr], {}).name).toBe('gumperr');
+    expect(resolveSite([northstar], {}).name).toBe('northstar');
   });
 
   it('lists names when ambiguous', () => {
-    expect(() => resolveSite(two, {})).toThrow('Several sites are configured; pass site as one of: gumperr, qint.');
+    expect(() => resolveSite(two, {})).toThrow('Several sites are configured; pass site as one of: northstar, bluebird.');
   });
 
   it('reports unknown hosts with configured names', () => {
-    expect(() => resolveSite(two, { host: 'other.atlassian.net' })).toThrow(/No configured site for other\.atlassian\.net; configured: gumperr, qint/);
+    expect(() => resolveSite(two, { host: 'other.atlassian.net' })).toThrow(/No configured site for other\.atlassian\.net; configured: northstar, bluebird/);
   });
 
   it('reports unavailable sites with the reason', () => {
-    expect(() => resolveSite([{ ...gumperr, unavailable: 'env GUMPERR_ATLASSIAN_TOKEN is not set' }], {})).toThrow(
-      'Site gumperr is unavailable: env GUMPERR_ATLASSIAN_TOKEN is not set.',
+    expect(() => resolveSite([{ ...northstar, unavailable: 'env NORTHSTAR_ATLASSIAN_TOKEN is not set' }], {})).toThrow(
+      'Site northstar is unavailable: env NORTHSTAR_ATLASSIAN_TOKEN is not set.',
     );
-    expect(() => resolveSite([{ ...gumperr, unavailable: 'env X is not set' }, qint], { host: 'gumperr.atlassian.net' })).toThrow(
-      'Site gumperr is unavailable: env X is not set.',
+    expect(() => resolveSite([{ ...northstar, unavailable: 'env X is not set' }, bluebird], { host: 'northstar.atlassian.net' })).toThrow(
+      'Site northstar is unavailable: env X is not set.',
     );
-    expect(resolveSite([{ ...gumperr, unavailable: 'env X is not set' }, qint], { site: 'qint' }).name).toBe('qint');
+    expect(resolveSite([{ ...northstar, unavailable: 'env X is not set' }, bluebird], { site: 'bluebird' }).name).toBe('bluebird');
   });
 
   it('tells the user how to configure when there are no sites', () => {

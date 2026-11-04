@@ -15,7 +15,7 @@ const myself401: Route = { method: 'GET', path: '/rest/api/3/myself', status: 40
 const spaces404: Route = { method: 'GET', path: '/wiki/api/v2/spaces', status: 404 };
 
 /** name, url, email, token, token type, project, space, another site. */
-const DEFAULT_ANSWERS = ['gumperr', 'gumperr.atlassian.net', 'a@b.c', 'GUMPERR_ATLASSIAN_TOKEN', '', 'GUM', 'SD', 'n'];
+const DEFAULT_ANSWERS = ['northstar', 'northstar.atlassian.net', 'a@b.c', 'NORTHSTAR_ATLASSIAN_TOKEN', '', 'DEMO', 'DOCS', 'n'];
 
 function literalTokenAnswers(token: string): string[] {
   return DEFAULT_ANSWERS.map((a, i) => (i === 3 ? token : a));
@@ -38,7 +38,7 @@ function deps(opts: Opts = {}) {
     return next;
   });
   const prompter = { ask, close: vi.fn() };
-  const m = mockFetch(opts.routes ?? [myselfOk('Andrija Peric'), spacesOk]);
+  const m = mockFetch(opts.routes ?? [myselfOk('Alex Example'), spacesOk]);
   const files = { ...opts.files };
   const written: Record<string, string> = {};
   const lines: string[] = [];
@@ -48,7 +48,7 @@ function deps(opts: Opts = {}) {
       lines.push(line);
     },
     configPath: PATH,
-    env: opts.env ?? { GUMPERR_ATLASSIAN_TOKEN: SECRET },
+    env: opts.env ?? { NORTHSTAR_ATLASSIAN_TOKEN: SECRET },
     fetch: m.fetch,
     readFile: (p: string) => files[p],
     writeFile: (p: string, data: string) => {
@@ -75,18 +75,18 @@ function writtenSites(d: { written: Record<string, string> }): unknown {
 
 describe('runInit', () => {
   it('writes sites.json with an env reference, mode handled by writeFile, and verifies products', async () => {
-    const d = deps({ env: { GUMPERR_ATLASSIAN_TOKEN: SECRET }, routes: [myselfOk('Andrija Peric'), spacesOk] });
+    const d = deps({ env: { NORTHSTAR_ATLASSIAN_TOKEN: SECRET }, routes: [myselfOk('Alex Example'), spacesOk] });
     expect(await runInit(d)).toBe(0);
     expect(writtenSites(d)).toEqual({
       sites: [
         {
-          name: 'gumperr',
-          baseUrl: 'https://gumperr.atlassian.net',
+          name: 'northstar',
+          baseUrl: 'https://northstar.atlassian.net',
           email: 'a@b.c',
-          apiToken: '${GUMPERR_ATLASSIAN_TOKEN}',
+          apiToken: '${NORTHSTAR_ATLASSIAN_TOKEN}',
           tokenType: 'classic',
-          defaultJiraProject: 'GUM',
-          defaultConfluenceSpace: 'SD',
+          defaultJiraProject: 'DEMO',
+          defaultConfluenceSpace: 'DOCS',
         },
       ],
     });
@@ -95,13 +95,13 @@ describe('runInit', () => {
         {
           sites: [
             {
-              name: 'gumperr',
-              baseUrl: 'https://gumperr.atlassian.net',
+              name: 'northstar',
+              baseUrl: 'https://northstar.atlassian.net',
               email: 'a@b.c',
-              apiToken: '${GUMPERR_ATLASSIAN_TOKEN}',
+              apiToken: '${NORTHSTAR_ATLASSIAN_TOKEN}',
               tokenType: 'classic',
-              defaultJiraProject: 'GUM',
-              defaultConfluenceSpace: 'SD',
+              defaultJiraProject: 'DEMO',
+              defaultConfluenceSpace: 'DOCS',
             },
           ],
         },
@@ -109,12 +109,12 @@ describe('runInit', () => {
         2,
       ) + '\n',
     );
-    expect(d.lines).toContain('gumperr: Jira ok (Andrija Peric), Confluence ok');
+    expect(d.lines).toContain('northstar: Jira ok (Alex Example), Confluence ok');
     expect(d.lines.join('\n')).toContain('claude mcp add atlas -- npx -y atlas-lite-mcp');
     expect(d.lines.slice(-2)).toEqual([`Wrote ${PATH} (mode 600).`, 'Add to Claude Code: claude mcp add atlas -- npx -y atlas-lite-mcp']);
     expect(d.calls.map((c) => c.url)).toEqual([
-      'https://gumperr.atlassian.net/rest/api/3/myself',
-      'https://gumperr.atlassian.net/wiki/api/v2/spaces?limit=1',
+      'https://northstar.atlassian.net/rest/api/3/myself',
+      'https://northstar.atlassian.net/wiki/api/v2/spaces?limit=1',
     ]);
     expect(d.calls[0]!.headers.authorization).toBe(`Basic ${Buffer.from(`a@b.c:${SECRET}`).toString('base64')}`);
     expect(d.prompter.close).toHaveBeenCalled();
@@ -140,45 +140,45 @@ describe('runInit', () => {
     expect(await runInit(d)).toBe(0);
     expect(d.prompter.ask).toHaveBeenCalledWith(expect.stringMatching(/token/i), expect.objectContaining({ secret: true }));
     expect(d.lines.join('\n')).not.toContain(SECRET);
-    expect(d.lines).toContain('gumperr: Jira ok (Andrija Peric), Confluence ok');
+    expect(d.lines).toContain('northstar: Jira ok (Alex Example), Confluence ok');
     expect((writtenSites(d) as { sites: { apiToken: string }[] }).sites[0]!.apiToken).toBe(SECRET);
   });
 
   it('replaces a site with the same name and keeps others', async () => {
-    const qint = { name: 'qint', baseUrl: 'https://qint.atlassian.net', email: 'q@b.c', apiToken: '${QINT_TOKEN}' };
-    const existing = { sites: [{ name: 'gumperr', baseUrl: 'https://old.atlassian.net', email: 'old@b.c', apiToken: '${OLD_TOKEN}' }, qint] };
-    const d = deps({ env: { GUMPERR_ATLASSIAN_TOKEN: SECRET }, routes: [myselfOk('Andrija Peric'), spacesOk], files: { [PATH]: JSON.stringify(existing) } });
+    const bluebird = { name: 'bluebird', baseUrl: 'https://bluebird.atlassian.net', email: 'q@b.c', apiToken: '${BLUEBIRD_TOKEN}' };
+    const existing = { sites: [{ name: 'northstar', baseUrl: 'https://old.atlassian.net', email: 'old@b.c', apiToken: '${OLD_TOKEN}' }, bluebird] };
+    const d = deps({ env: { NORTHSTAR_ATLASSIAN_TOKEN: SECRET }, routes: [myselfOk('Alex Example'), spacesOk], files: { [PATH]: JSON.stringify(existing) } });
     expect(await runInit(d)).toBe(0);
     const { sites } = writtenSites(d) as { sites: { name: string }[] };
-    expect(sites.map((x) => x.name)).toEqual(['gumperr', 'qint']);
-    expect(sites[0]).toMatchObject({ baseUrl: 'https://gumperr.atlassian.net', email: 'a@b.c', apiToken: '${GUMPERR_ATLASSIAN_TOKEN}' });
-    expect(sites[1]).toEqual(qint);
+    expect(sites.map((x) => x.name)).toEqual(['northstar', 'bluebird']);
+    expect(sites[0]).toMatchObject({ baseUrl: 'https://northstar.atlassian.net', email: 'a@b.c', apiToken: '${NORTHSTAR_ATLASSIAN_TOKEN}' });
+    expect(sites[1]).toEqual(bluebird);
   });
 
   it('matches an existing site name ignoring case and appends a new one', async () => {
-    const existing = { sites: [{ name: 'Gumperr', baseUrl: 'https://old.atlassian.net', email: 'old@b.c', apiToken: '${OLD_TOKEN}' }] };
-    const answers = [...DEFAULT_ANSWERS.slice(0, 7), 'Y', 'qint', 'https://qint.atlassian.net/wiki/spaces/X', 'q@b.c', 'QINT_TOKEN', 'scoped', '', '', 'no'];
-    const d = deps({ answers, env: { GUMPERR_ATLASSIAN_TOKEN: SECRET }, files: { [PATH]: JSON.stringify(existing) } });
+    const existing = { sites: [{ name: 'Northstar', baseUrl: 'https://old.atlassian.net', email: 'old@b.c', apiToken: '${OLD_TOKEN}' }] };
+    const answers = [...DEFAULT_ANSWERS.slice(0, 7), 'Y', 'bluebird', 'https://bluebird.atlassian.net/wiki/spaces/X', 'q@b.c', 'BLUEBIRD_TOKEN', 'scoped', '', '', 'no'];
+    const d = deps({ answers, env: { NORTHSTAR_ATLASSIAN_TOKEN: SECRET }, files: { [PATH]: JSON.stringify(existing) } });
     expect(await runInit(d)).toBe(0);
     const { sites } = writtenSites(d) as { sites: Record<string, string>[] };
-    expect(sites.map((x) => x.name)).toEqual(['gumperr', 'qint']);
-    expect(sites[1]).toEqual({ name: 'qint', baseUrl: 'https://qint.atlassian.net', email: 'q@b.c', apiToken: '${QINT_TOKEN}', tokenType: 'scoped' });
-    expect(d.lines).toContain('QINT_TOKEN is not set in this shell; set it before starting the server. Skipping verification.');
+    expect(sites.map((x) => x.name)).toEqual(['northstar', 'bluebird']);
+    expect(sites[1]).toEqual({ name: 'bluebird', baseUrl: 'https://bluebird.atlassian.net', email: 'q@b.c', apiToken: '${BLUEBIRD_TOKEN}', tokenType: 'scoped' });
+    expect(d.lines).toContain('BLUEBIRD_TOKEN is not set in this shell; set it before starting the server. Skipping verification.');
   });
 
   it('reports unreachable products without failing the write', async () => {
     const d = deps({ routes: [myself401, spaces404] });
     expect(await runInit(d)).toBe(0);
-    const line = d.lines.find((l) => l.startsWith('gumperr: Jira failed (Token or email for site gumperr rejected (401).'));
+    const line = d.lines.find((l) => l.startsWith('northstar: Jira failed (Token or email for site northstar rejected (401).'));
     expect(line).toBeDefined();
-    expect(line).toContain('Confluence failed (Not found on site gumperr');
+    expect(line).toContain('Confluence failed (Not found on site northstar');
     expect(Object.keys(d.written)).toEqual([PATH]);
     expect(d.lines.join('\n')).not.toContain(SECRET);
   });
 
   it('warns when the env variable named for the token is not set', async () => {
     const d = await runInitWith({ env: {} });
-    expect(d.lines).toContain('GUMPERR_ATLASSIAN_TOKEN is not set in this shell; set it before starting the server. Skipping verification.');
+    expect(d.lines).toContain('NORTHSTAR_ATLASSIAN_TOKEN is not set in this shell; set it before starting the server. Skipping verification.');
     expect(d.code).toBe(0);
     expect(d.calls).toEqual([]);
     expect(Object.keys(d.written)).toEqual([PATH]);
@@ -195,7 +195,7 @@ describe('runInit', () => {
   });
 
   it('returns 1 without writing when input ends early', async () => {
-    const d = await runInitWith({ answers: ['gumperr'] });
+    const d = await runInitWith({ answers: ['northstar'] });
     expect(d.code).toBe(1);
     expect(d.written).toEqual({});
     expect(d.lines).toEqual([`Setup stopped before it finished; ${PATH} was not changed.`]);
@@ -270,10 +270,10 @@ describe('createPrompter', () => {
 
       const name = p.ask('Site name');
       t.input.write('\x1b[A');
-      t.input.write('gumperr\r');
-      expect(await name).toBe('gumperr');
+      t.input.write('northstar\r');
+      expect(await name).toBe('northstar');
       expect(t.captured()).toContain('Site name: ');
-      expect(t.captured()).toContain('gumperr');
+      expect(t.captured()).toContain('northstar');
       expect(t.captured()).not.toContain('tok-SECRET-123');
     } finally {
       p.close();

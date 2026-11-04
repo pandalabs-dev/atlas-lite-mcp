@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Site } from '../src/core/config.js';
 import { createRuntime, type Runtime } from '../src/core/runtime.js';
 import { createServer, packageVersion } from '../src/server.js';
-import { gumperr, testRuntime } from './helpers/runtime.js';
+import { northstar, testRuntime } from './helpers/runtime.js';
 
 const SETUP = 'No Atlassian sites are configured. Run "npx atlas-lite-mcp init" or set ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN.';
 const NAMES = ['issue_comment', 'issue_create', 'issue_get', 'issue_search', 'issue_transition', 'issue_update', 'page_append', 'page_comment', 'page_create', 'page_edit', 'page_get', 'page_search', 'page_update_section', 'sites_list', 'table_add_row', 'table_get', 'table_update'];
@@ -20,8 +20,8 @@ async function connect(rt: Runtime): Promise<Client> {
   return c;
 }
 
-const qint: Site = { name: 'qint', baseUrl: 'https://qint.atlassian.net', host: 'qint.atlassian.net', email: 'q@b.c', apiToken: '', tokenType: 'classic', unavailable: 'env QINT_TOKEN is not set' };
-const sites: Site[] = [{ ...gumperr, defaultJiraProject: 'GUM', defaultConfluenceSpace: 'SD' }, qint];
+const bluebird: Site = { name: 'bluebird', baseUrl: 'https://bluebird.atlassian.net', host: 'bluebird.atlassian.net', email: 'q@b.c', apiToken: '', tokenType: 'classic', unavailable: 'env BLUEBIRD_TOKEN is not set' };
+const sites: Site[] = [{ ...northstar, defaultJiraProject: 'DEMO', defaultConfluenceSpace: 'DOCS' }, bluebird];
 
 let client: Client;
 
@@ -83,8 +83,8 @@ describe('server', () => {
   it('sites_list probes each site and shows defaults', async () => {
     expect((await client.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
       '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
-      '| gumperr | gumperr.atlassian.net | jira, confluence | GUM | SD |',
-      '| qint | qint.atlassian.net | unavailable: env QINT_TOKEN is not set | - | - |',
+      '| northstar | northstar.atlassian.net | jira, confluence | DEMO | DOCS |',
+      '| bluebird | bluebird.atlassian.net | unavailable: env BLUEBIRD_TOKEN is not set | - | - |',
     ].join('\n') }]);
   });
 
@@ -96,7 +96,7 @@ describe('server', () => {
     const c = await connect(rt);
     expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
       '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
-      '| gumperr | gumperr.atlassian.net | jira (confluence: 401) | - | - |',
+      '| northstar | northstar.atlassian.net | jira (confluence: 401) | - | - |',
     ].join('\n') }]);
   });
 
@@ -109,16 +109,16 @@ describe('server', () => {
     const c = await connect(rt);
     expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
       '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
-      '| gumperr | gumperr.atlassian.net | confluence (jira: timeout) | - | - |',
+      '| northstar | northstar.atlassian.net | confluence (jira: timeout) | - | - |',
     ].join('\n') }]);
   });
 
   it('sites_list labels a scoped site whose cloudId lookup fails', async () => {
-    const { rt } = testRuntime([{ method: 'GET', path: '/_edge/tenant_info', json: {} }], [{ ...gumperr, tokenType: 'scoped' }]);
+    const { rt } = testRuntime([{ method: 'GET', path: '/_edge/tenant_info', json: {} }], [{ ...northstar, tokenType: 'scoped' }]);
     const c = await connect(rt);
     expect((await c.callTool({ name: 'sites_list', arguments: {} })).content).toEqual([{ type: 'text', text: [
       '| site | host | reachable | project | space |', '| --- | --- | --- | --- | --- |',
-      '| gumperr | gumperr.atlassian.net | none (jira: no cloudId, confluence: no cloudId) | - | - |',
+      '| northstar | northstar.atlassian.net | none (jira: no cloudId, confluence: no cloudId) | - | - |',
     ].join('\n') }]);
   });
 });

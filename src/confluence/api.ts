@@ -8,7 +8,7 @@ export interface PageData {
   spaceId: string;
   version: number;
   storage: string;
-  /** Path below `<baseUrl>/wiki`, e.g. `/spaces/SD/pages/7/Costs`. */
+  /** Path below `<baseUrl>/wiki`, e.g. `/spaces/DOCS/pages/7/Costs`. */
   webui?: string;
 }
 

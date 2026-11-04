@@ -4,25 +4,25 @@ import { parseIssueRef, parsePageRef } from '../../src/core/url.js';
 
 describe('parsePageRef', () => {
   it.each([
-    ['https://x.atlassian.net/wiki/spaces/SD/pages/23560194/Title', '23560194'],
-    ['https://x.atlassian.net/wiki/spaces/SD/pages/23560194', '23560194'],
-    ['https://x.atlassian.net/wiki/pages/viewpage.action?pageId=23560194', '23560194'],
-    ['https://x.atlassian.net/wiki/pages/edit-v2/23560194', '23560194'],
-    ['https://x.atlassian.net/wiki/spaces/SD/pages/edit-v2/23560194?draftShareId=1', '23560194'],
+    ['https://x.atlassian.net/wiki/spaces/DOCS/pages/90000001/Title', '90000001'],
+    ['https://x.atlassian.net/wiki/spaces/DOCS/pages/90000001', '90000001'],
+    ['https://x.atlassian.net/wiki/pages/viewpage.action?pageId=90000001', '90000001'],
+    ['https://x.atlassian.net/wiki/pages/edit-v2/90000001', '90000001'],
+    ['https://x.atlassian.net/wiki/spaces/DOCS/pages/edit-v2/90000001?draftShareId=1', '90000001'],
     ['https://x.atlassian.net/wiki/spaces/~5b12/pages/42/Personal', '42'],
-    ['23560194', '23560194'],
-    ['  23560194 ', '23560194'],
+    ['90000001', '90000001'],
+    ['  90000001 ', '90000001'],
   ])('page ref %s', (input, id) => {
     expect(parsePageRef(input).id).toBe(id);
   });
 
   it('returns the host for page URLs', () => {
     expect(parsePageRef('https://x.atlassian.net/wiki/pages/viewpage.action?pageId=1')).toEqual({ id: '1', host: 'x.atlassian.net' });
-    expect(parsePageRef('https://X.Atlassian.net/wiki/spaces/SD/pages/7').host).toBe('x.atlassian.net');
+    expect(parsePageRef('https://X.Atlassian.net/wiki/spaces/DOCS/pages/7').host).toBe('x.atlassian.net');
   });
 
   it('returns no host for a bare id', () => {
-    expect(parsePageRef('23560194')).toEqual({ id: '23560194' });
+    expect(parsePageRef('90000001')).toEqual({ id: '90000001' });
   });
 
   it('rejects tiny links with a pointer to the full URL', () => {
@@ -34,10 +34,10 @@ describe('parsePageRef', () => {
   });
 
   it.each([
-    'https://x.atlassian.net/wiki/spaces/SD/overview',
+    'https://x.atlassian.net/wiki/spaces/DOCS/overview',
     'https://x.atlassian.net/wiki/pages/viewpage.action?pageId=abc',
-    'https://x.atlassian.net/wiki/spaces/SD/pages/123abc',
-    'ftp://x.atlassian.net/wiki/spaces/SD/pages/1',
+    'https://x.atlassian.net/wiki/spaces/DOCS/pages/123abc',
+    'ftp://x.atlassian.net/wiki/spaces/DOCS/pages/1',
     '',
   ])('rejects non-page input %s', (input) => {
     expect(() => parsePageRef(input)).toThrow(/Not a Confluence page URL or id/);
@@ -52,8 +52,8 @@ describe('parseIssueRef', () => {
   it.each([
     ['https://x.atlassian.net/browse/KEY-123', 'KEY-123'],
     ['https://x.atlassian.net/browse/key-123?focusedCommentId=5', 'KEY-123'],
-    ['https://x.atlassian.net/jira/software/projects/GUM/boards/1?selectedIssue=GUM-7', 'GUM-7'],
-    ['gum_2-15', 'GUM_2-15'],
+    ['https://x.atlassian.net/jira/software/projects/DEMO/boards/1?selectedIssue=DEMO-7', 'DEMO-7'],
+    ['demo_2-15', 'DEMO_2-15'],
     ['KEY-123', 'KEY-123'],
     [' KEY-123 ', 'KEY-123'],
   ])('issue ref %s', (input, key) => {
@@ -75,7 +75,7 @@ describe('parseIssueRef', () => {
     'KEY-12a',
     'hello',
     'https://x.atlassian.net/browse/1A-2',
-    'https://x.atlassian.net/jira/software/projects/GUM/boards/1',
+    'https://x.atlassian.net/jira/software/projects/DEMO/boards/1',
   ])('rejects non-issue input %s', (input) => {
     expect(() => parseIssueRef(input)).toThrow(/Not a Jira issue URL or key/);
   });

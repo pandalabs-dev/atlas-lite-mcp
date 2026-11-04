@@ -9,11 +9,11 @@ describe('buildJql', () => {
   });
 
   it('prefixes the default project and keeps ORDER BY outside the parentheses', () => {
-    expect(buildJql('status = Done ORDER BY created DESC', 'GUM')).toBe('project = "GUM" AND (status = Done) ORDER BY created DESC');
-    expect(buildJql('ORDER BY created DESC', 'GUM')).toBe('project = "GUM" ORDER BY created DESC');
-    expect(buildJql('broken login', 'GUM')).toBe('project = "GUM" AND (text ~ "broken login") ORDER BY updated DESC');
-    expect(buildJql('project = QA AND status = Done', 'GUM')).toBe('project = QA AND status = Done');
-    expect(buildJql('summary ~ "order by me"', 'GUM')).toBe('project = "GUM" AND (summary ~ "order by me")');
+    expect(buildJql('status = Done ORDER BY created DESC', 'DEMO')).toBe('project = "DEMO" AND (status = Done) ORDER BY created DESC');
+    expect(buildJql('ORDER BY created DESC', 'DEMO')).toBe('project = "DEMO" ORDER BY created DESC');
+    expect(buildJql('broken login', 'DEMO')).toBe('project = "DEMO" AND (text ~ "broken login") ORDER BY updated DESC');
+    expect(buildJql('project = QA AND status = Done', 'DEMO')).toBe('project = QA AND status = Done');
+    expect(buildJql('summary ~ "order by me"', 'DEMO')).toBe('project = "DEMO" AND (summary ~ "order by me")');
   });
 
   it('passes JQL through unchanged without a default project', () => {
