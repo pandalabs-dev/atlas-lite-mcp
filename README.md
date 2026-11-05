@@ -19,6 +19,14 @@ claude mcp add atlas -- npx -y atlas-lite-mcp
 
 The `--` separates Claude options from the server launch command. Claude Code registers this at local scope by default, private to you in the current project. Configure credentials before launching it as described below.
 
+Register with Codex:
+
+```sh
+codex mcp add atlas -- npx -y atlas-lite-mcp
+```
+
+Codex saves this in your user MCP configuration. Start a new client session after registration and ask it to call `sites_list` once credentials are configured.
+
 Or install the CLI globally:
 
 ```sh
@@ -85,7 +93,7 @@ Names, project keys and space keys here are examples, not built-in defaults. Add
 chmod 600 ~/.config/atlas-lite-mcp/sites.json
 ```
 
-The 16 page, table and issue tools accept optional `site`, matched case-insensitively by name or hostname; `sites_list` takes no arguments and lists all configured sites. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, use a bare ID or key with the explicit profile name.
+The 16 page, table and issue tools accept optional `site`, matched case-insensitively by name or hostname; `sites_list` takes no arguments and lists all configured sites. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, pass the explicit profile name with either a URL or a bare ID/key. An ambiguous hostname asks for the profile name instead of choosing credentials arbitrarily.
 
 ## Scoped tokens
 
@@ -162,6 +170,8 @@ There are 17 tools: the 16 page, table and issue tools accept optional `site`; `
 | `issue_comment` | Add a comment using `key` and `markdown`. |
 | `sites_list` | List names, hosts, default project/space and product reachability via read-only probes. |
 
+To clear an optional Jira field, pass `null` in `issue_update.fields`, for example `{"Assignee": null, "Due date": null}`. Use an empty array to clear labels or other lists. Required fields cannot be cleared; Jira still enforces its field and workflow rules. To clear the description, use the separate `description` parameter with an empty string.
+
 ## Placeholder tokens
 
 Markdown reads represent unsupported rich content as `{{atlas:N}} [hint]`, for example `{{atlas:3}} [macro: toc]`. Keep the token in submitted markdown to keep the underlying macro, image, attachment or ADF node; the trailing hint is ignored on restoration. Tokens are scoped to the same site and page or issue, not portable identifiers.
@@ -202,6 +212,15 @@ node dist/index.js --version
 ```
 
 The version command should print `0.1.0`. Run `node dist/index.js` for the local stdio server. `pnpm test` is the offline unit suite and excludes `test/smoke/**`. Keep `ATLAS_ALLOW_NETWORK` unset for offline checks. The publish hook runs exactly `pnpm run typecheck && pnpm test && pnpm run build`, not smoke tests. `npm pack --dry-run` inspects packaging without publishing; build first because `prepublishOnly` runs on publish, not pack. The package boundary is `package.json`, `README.md`, `LICENSE` and `dist/**` only.
+
+To use a source checkout before npm publication, run `node dist/index.js init` from the repository, then register the built entry point using its absolute path:
+
+```sh
+claude mcp add --scope user atlas -- node /absolute/path/to/atlas-lite-mcp/dist/index.js
+codex mcp add atlas -- node /absolute/path/to/atlas-lite-mcp/dist/index.js
+```
+
+Use an absolute path to a supported Node binary too if the client cannot find `node`. Rebuild after pulling source changes, then start a new MCP client session. Registration and a successful MCP handshake do not verify Atlassian credentials; `sites_list` checks read access to each product.
 
 ### Optional live smoke test
 

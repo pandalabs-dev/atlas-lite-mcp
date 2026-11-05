@@ -12,6 +12,22 @@ const bluebird = site('bluebird', 'bluebird.atlassian.net');
 const two = [northstar, bluebird];
 
 describe('resolveSite', () => {
+  const sharedHost = [northstar, { ...northstar, name: 'northstar-confluence' }];
+
+  it('selects an explicit profile for a shared URL host', () => {
+    expect(resolveSite(sharedHost, { host: northstar.host, site: 'NORTHSTAR-CONFLUENCE' }).name).toBe('northstar-confluence');
+  });
+
+  it('requires a profile name when the URL or site hostname is ambiguous', () => {
+    expect(() => resolveSite(sharedHost, { host: northstar.host })).toThrow(/Several profiles.*northstar, northstar-confluence/);
+    expect(() => resolveSite(sharedHost, { site: northstar.host })).toThrow(/Several profiles.*northstar, northstar-confluence/);
+  });
+
+  it('does not fall back to another profile when the selected one is unavailable', () => {
+    const profiles = [northstar, { ...northstar, name: 'docs', unavailable: 'env DOCS_TOKEN is not set' }];
+    expect(() => resolveSite(profiles, { host: northstar.host, site: 'docs' })).toThrow(/Site docs is unavailable/);
+  });
+
   it('selects by URL host', () => {
     expect(resolveSite(two, { host: 'bluebird.atlassian.net' }).name).toBe('bluebird');
     expect(resolveSite(two, { host: 'BLUEBIRD.atlassian.net' }).name).toBe('bluebird');

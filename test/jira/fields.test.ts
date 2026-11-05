@@ -63,6 +63,24 @@ function srtWith(routes: Route[]): { srt: SiteRuntime; calls: ReturnType<typeof 
 const { srt } = srtWith([{ method: 'GET', path: USERS, json: [ana] }]);
 
 describe('resolveFields', () => {
+  it('preserves explicit null for clearing optional fields without resolving a user named null', async () => {
+    const { srt: s, calls } = srtWith([]);
+    const input = { priority: null, duedate: null, customfield_10060: null, customfield_10042: null, environment: null, parent: null, Sprint: null };
+    expect((await resolveFields(s, meta, input, 'DEMO-12')).fields).toEqual({
+      priority: null, duedate: null, customfield_10060: null, customfield_10042: null, environment: null, parent: null, customfield_10020: null,
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects clearing required fields even when Jira supplies a default', async () => {
+    await expect(resolveFields(srt, meta, { Severity: null }, 'DEMO-12')).rejects.toThrow('Severity is required and cannot be cleared.');
+    await expect(resolveFields(srt, meta, { Reporter: null }, 'DEMO-12')).rejects.toThrow('Reporter is required and cannot be cleared.');
+  });
+
+  it('rejects non-finite numeric values before they become JSON null', async () => {
+    await expect(resolveFields(srt, meta, { 'Story Points': 'Infinity' }, 'DEMO-12')).rejects.toThrow('Story Points needs a number.');
+  });
+
   it('matches keys by id or display name and values case-insensitively', async () => {
     const r = await resolveFields(srt, meta, { priority: 'high', 'story points': '5', Severity: 's2', Components: ['web'], duedate: '2026-12-01', Labels: ['a'] }, 'DEMO Bug');
     expect(r.fields).toEqual({ priority: { id: '2' }, customfield_10042: 5, customfield_10050: { id: '1002' }, components: [{ id: '30' }], duedate: '2026-12-01', labels: ['a'] });

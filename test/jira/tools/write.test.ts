@@ -178,6 +178,12 @@ describe('issue_create', () => {
 });
 
 describe('issue_update', () => {
+  it('sends an explicit null to clear an optional Jira field', async () => {
+    const { isError, calls } = await runWithCalls('issue_update', { key: 'DEMO-12', fields: { Priority: null } });
+    expect(isError).toBe(false);
+    expect(calls.at(-1)).toMatchObject({ method: 'PUT', body: { fields: { priority: null } } });
+  });
+
   it('issue_update names changed fields and reports dropped description tokens', async () => {
     const r = await runWithCalls('issue_update', { key: 'DEMO-12', summary: 'New', description: 'Only text now' });
     expect(r.text).toBe('Updated DEMO-12: summary, description\nDropped: 3 items: [mention: @Ana], [media: shot.png], [panel: info, Careful]');

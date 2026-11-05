@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { AtlasError } from '../../core/errors.js';
 import { mdTable } from '../../core/format.js';
-import { splitOrderBy } from '../../core/query.js';
+import { hasScopeClause, splitOrderBy } from '../../core/query.js';
 import { defineTool, siteParam, type ToolDef } from '../../core/tools.js';
 import { parsePageRef } from '../../core/url.js';
 import { addFooterComment, createPage, getPage, searchPages, spaceIdForKey } from '../api.js';
@@ -10,7 +10,6 @@ import { assertWellFormed } from '../storage/edit.js';
 import { pageTarget } from './pages.js';
 
 const CQL = /[=~<>]|\b(?:not\s+)?in\s*\(/i;
-const SPACE_CLAUSE = /\bspace\s*(?:=|!=|in\b|not\s+in\b)/i;
 const DEFAULT_LIMIT = 10;
 
 /** A CQL string literal: `\` and `"` escaped, wrapped in double quotes. */
@@ -28,7 +27,7 @@ export function buildCql(query: string, space?: string): string {
   if (orderBy === '' && !CQL.test(where)) {
     return ['type = page', spaceClause, `text ~ ${quote(where)}`].filter((part) => part !== undefined).join(' AND ');
   }
-  const scoped = spaceClause === undefined || SPACE_CLAUSE.test(where) ? where : where === '' ? spaceClause : `${spaceClause} AND (${where})`;
+  const scoped = spaceClause === undefined || hasScopeClause(where, 'space') ? where : where === '' ? spaceClause : `${spaceClause} AND (${where})`;
   return orderBy === '' ? scoped : `${scoped} ${orderBy}`;
 }
 

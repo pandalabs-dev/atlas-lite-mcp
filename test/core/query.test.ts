@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { splitOrderBy } from '../../src/core/query.js';
 
 describe('splitOrderBy', () => {
+  it('keeps ORDER BY inside single-quoted literals, including escaped quotes', () => {
+    expect(splitOrderBy("summary ~ 'order by me'")).toEqual({ where: "summary ~ 'order by me'", orderBy: '' });
+    expect(splitOrderBy("summary ~ 'a \\' order by' ORDER BY key")).toEqual({ where: "summary ~ 'a \\' order by'", orderBy: 'ORDER BY key' });
+  });
+
   it('splits ORDER BY outside double quotes only', () => {
     expect(splitOrderBy('title ~ "Costs" ORDER BY lastmodified DESC')).toEqual({ where: 'title ~ "Costs"', orderBy: 'ORDER BY lastmodified DESC' });
     expect(splitOrderBy('ORDER BY created DESC')).toEqual({ where: '', orderBy: 'ORDER BY created DESC' });

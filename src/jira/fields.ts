@@ -112,6 +112,10 @@ function isRichText(field: FieldMeta): boolean {
 
 /** A plain value in the API shape for this field (value rules of spec 6.5). */
 async function shapeValue(rt: SiteRuntime, field: FieldMeta, v: unknown): Promise<unknown> {
+  if (v === null) {
+    if (field.required) throw new AtlasError(`${field.name} is required and cannot be cleared.`);
+    return null;
+  }
   const { type, items, system, custom } = field.schema;
   const list = Array.isArray(v) ? v : [v];
   if (custom === SPRINT) {
@@ -130,7 +134,7 @@ async function shapeValue(rt: SiteRuntime, field: FieldMeta, v: unknown): Promis
   if (field.allowedValues !== undefined) return allowedId(field, v);
   if (type === 'number') {
     const n = typeof v === 'number' ? v : String(v).trim() === '' ? NaN : Number(String(v).trim());
-    if (Number.isNaN(n)) throw new AtlasError(`${field.name} needs a number.`);
+    if (!Number.isFinite(n)) throw new AtlasError(`${field.name} needs a number.`);
     return n;
   }
   if (type === 'date' || type === 'datetime') return String(v);

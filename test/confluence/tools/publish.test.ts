@@ -64,6 +64,13 @@ function post(calls: Call[]): Call {
 }
 
 describe('buildCql', () => {
+  it('recognizes space.key and quoted fields without matching clauses inside literals', () => {
+    expect(buildCql('space.key = QA', 'DOCS')).toBe('space.key = QA');
+    expect(buildCql('"space" = QA', 'DOCS')).toBe('"space" = QA');
+    expect(buildCql('title ~ "space = QA"', 'DOCS')).toBe('space = "DOCS" AND (title ~ "space = QA")');
+    expect(buildCql("title ~ 'order by me'", 'DOCS')).toBe("space = \"DOCS\" AND (title ~ 'order by me')");
+  });
+
   it('buildCql turns plain text into a quoted text search and scopes CQL to a space', () => {
     expect(buildCql('budget "Q3" plan')).toBe('type = page AND text ~ "budget \\"Q3\\" plan"');
     expect(buildCql('budget', 'DOCS')).toBe('type = page AND space = "DOCS" AND text ~ "budget"');

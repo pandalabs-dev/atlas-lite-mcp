@@ -1,7 +1,6 @@
-import { splitOrderBy } from '../core/query.js';
+import { hasScopeClause, splitOrderBy } from '../core/query.js';
 
 const JQL = /[=~<>]|\b(?:not\s+)?in\s*\(|\bis\s+(?:not\s+)?(?:empty|null)\b/i;
-const PROJECT_CLAUSE = /\bproject\s*(?:=|!=|\bin\b|\bnot\s+in\b)/i;
 
 function looksLikeJql(where: string, orderBy: string): boolean {
   return orderBy !== '' || JQL.test(where);
@@ -28,7 +27,7 @@ export function buildJql(query: string, defaultProject?: string): string {
     where = `text ~ ${quote(where)}`;
     orderBy = 'ORDER BY updated DESC';
   }
-  if (defaultProject !== undefined && !PROJECT_CLAUSE.test(where)) {
+  if (defaultProject !== undefined && !hasScopeClause(where, 'project')) {
     const project = `project = ${quote(defaultProject)}`;
     where = where === '' ? project : `${project} AND (${where})`;
   }
