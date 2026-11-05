@@ -3,7 +3,7 @@
 ## Current state, 2026-11-05: deletion support
 
 - Branch: `main`; remote: https://github.com/pandalabs-dev/atlas-lite-mcp.git.
-- Version `0.2.0` is implemented and locally verified; npm publication is the next release step. The previous public release is `0.1.0`, tag `v0.1.0` at `c42559c`.
+- Version `0.2.0` is implemented in `82ed628`, pushed to origin/main and locally verified; npm publication is awaiting the owner's npm browser authorization. The previous public release is `0.1.0`, tag `v0.1.0` at `c42559c`.
 - The owner explicitly requested deletion tools. This supersedes the original no-DELETE implementation requirement.
 - `page_delete` accepts a page URL or ID and optional site, and moves a published Confluence page to trash. It does not expose permanent purge, draft deletion or recursive page-tree deletion.
 - `issue_delete` accepts an issue key or URL and optional site. It permanently deletes the issue; subtasks are included only with explicit `deleteSubtasks: true`. Both tools carry destructive MCP annotations.
@@ -17,7 +17,7 @@
 - Coverage includes both actual MCP tool calls with mocked HTTP, empty 204 responses, classic/scoped routing, shared-host credentials, invalid targets, site ambiguity/conflicts, 400/403/404/500 failures, ambiguous network failure, and subtask opt-in. Query parameters embedded in a pasted URL cannot enable purge, draft deletion or cascade deletion.
 - Fresh tarball installation on Node 20.19.0 and Node 22.21.1: CLI version/help, npm exec, private init (mode 600), stdio initialization, 19 tools, destructive annotations, missing-config errors and clean stderr passed.
 - Tool catalogue: 9,316 characters, below the 12,000-character budget.
-- Tarball: 44 files, 192,489 unpacked bytes; SHA-1 `7f9058e8b76013f07698682bf1cfb82be0aa289f`. Boundary: package.json, README.md, LICENSE, dist/**. Temporary installs are removed after verification.
+- Tarball: 44 files, 192,489 unpacked bytes; SHA-1 `e73469171dbfc5944ec8d7747a2f58eed4658390`. Boundary: package.json, README.md, LICENSE, dist/**. Temporary installs are removed after verification.
 
 ## Remaining release steps
 

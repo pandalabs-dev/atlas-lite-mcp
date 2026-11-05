@@ -1,6 +1,6 @@
 # v0.2.0 release readiness
 
-Deletion support requested by the owner on 2026-11-05. Implementation and package checks are complete; npm publication is pending.
+Deletion support requested by the owner on 2026-11-05. Implementation `82ed628` is pushed to origin/main and package checks are complete; npm publication awaits the owner's npm browser authorization.
 
 | Gate | State | Evidence |
 | --- | --- | --- |
@@ -11,13 +11,14 @@ Deletion support requested by the owner on 2026-11-05. Implementation and packag
 | Real stdio transport | Passed | 19 tools, destructive annotations, no-config errors, clean shutdown |
 | Runtime floor | Passed | Fresh tarball installation and stdio on Node 20.19.0 and 22.21.1 |
 | Tool context budget | Passed | 9,316 characters, under 12,000 |
-| GitHub and npm publication | Pending | Commit/push, npm publish and registry verification remain |
+| GitHub | Pushed | Implementation commit 82ed628 on origin/main |
+| npm publication | Awaiting npm authorization | Prepublish checks passed; npm browser confirmation and registry verification remain |
 | Live Atlassian deletion | Not performed | No disposable target was designated for this feature release |
 | Client installation | Owner-controlled | Existing global packages and MCP registrations unchanged |
 
 The release adds `page_delete` and `issue_delete`. It supersedes the original no-DELETE requirement. `page_delete` uses Confluence REST v2 without purge or draft flags; `issue_delete` uses Jira REST v3 with `deleteSubtasks=false` unless the caller explicitly sets the boolean to true. Both tools accept the existing site selection conventions. See the README for account permissions and token scopes.
 
-The tarball contains 44 files, 192,489 unpacked bytes, SHA-1 `7f9058e8b76013f07698682bf1cfb82be0aa289f`. Package content is limited to package.json, README.md, LICENSE and dist/**. Testing did not use live credentials or mutate Atlassian content.
+The tarball contains 44 files, 192,489 unpacked bytes, SHA-1 `e73469171dbfc5944ec8d7747a2f58eed4658390`. Package content is limited to package.json, README.md, LICENSE and dist/**. Testing did not use live credentials or mutate Atlassian content.
 
 The owner upgrades using `npm install -g atlas-lite-mcp@0.2.0`, then restarts the MCP sessions. Existing sites.json remains usable. Actual deletion permissions remain unverified until a designated disposable target is used.
 
