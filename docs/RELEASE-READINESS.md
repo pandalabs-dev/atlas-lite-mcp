@@ -1,18 +1,18 @@
 # v0.2.0 release readiness
 
-Deletion support requested by the owner on 2026-11-05. Implementation `82ed628` is pushed to origin/main and package checks are complete; npm publication awaits the owner's npm browser authorization.
+Deletion support requested by the owner on 2026-11-05. Published and registry-verified on 2026-11-05. Implementation: `82ed628`; published source and tag `v0.2.0`: `6767175ba8cbfa55459ce52fd33981e4987f6f79`. Package: https://www.npmjs.com/package/atlas-lite-mcp.
 
 | Gate | State | Evidence |
 | --- | --- | --- |
 | Implementation and offline checks | Passed | Typecheck, 464 tests in 31 files, build on Node 22.21.1 |
 | Delete semantics | Passed offline | Confluence trash only; Jira subtasks opt in; destructive MCP annotations |
 | Routing and failure checks | Passed offline | Classic/scoped, explicit shared-host profiles, ambiguity/conflict rejection, HTTP and network errors |
-| Package installation | Passed | Fresh production-only tarball install; CLI, npm exec, private init |
+| Package installation | Passed | Fresh production-only public-registry install with empty npm cache; CLI, npm exec, private init |
 | Real stdio transport | Passed | 19 tools, destructive annotations, no-config errors, clean shutdown |
 | Runtime floor | Passed | Fresh tarball installation and stdio on Node 20.19.0 and 22.21.1 |
 | Tool context budget | Passed | 9,316 characters, under 12,000 |
 | GitHub | Pushed | Implementation commit 82ed628 on origin/main |
-| npm publication | Awaiting npm authorization | Prepublish checks passed; npm browser confirmation and registry verification remain |
+| npm publication and tag | Published | npm latest 0.2.0; registry gitHead and v0.2.0 both point to 6767175 |
 | Live Atlassian deletion | Not performed | No disposable target was designated for this feature release |
 | Client installation | Owner-controlled | Existing global packages and MCP registrations unchanged |
 
@@ -20,7 +20,9 @@ The release adds `page_delete` and `issue_delete`. It supersedes the original no
 
 The tarball contains 44 files, 192,489 unpacked bytes, SHA-1 `e73469171dbfc5944ec8d7747a2f58eed4658390`. Package content is limited to package.json, README.md, LICENSE and dist/**. Testing did not use live credentials or mutate Atlassian content.
 
-The owner upgrades using `npm install -g atlas-lite-mcp@0.2.0`, then restarts the MCP sessions. Existing sites.json remains usable. Actual deletion permissions remain unverified until a designated disposable target is used.
+The owner upgrades using `npm install -g atlas-lite-mcp@0.2.0 --prefer-online`, then restarts the MCP sessions. Existing sites.json remains usable. Actual deletion permissions remain unverified until a designated disposable target is used.
+
+The first npm browser authorization expired. The second was completed by the owner. npm accepted publication, then the version became available after registry processing. A fresh installation from npm verified all 19 tool definitions, destructive annotations and clean stdio shutdown. No global package upgrade or client configuration change was performed by the agent.
 
 ## Previous release record
 

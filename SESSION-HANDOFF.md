@@ -3,7 +3,7 @@
 ## Current state, 2026-11-05: deletion support
 
 - Branch: `main`; remote: https://github.com/pandalabs-dev/atlas-lite-mcp.git.
-- Version `0.2.0` is implemented in `82ed628`, pushed to origin/main and locally verified; npm publication is awaiting the owner's npm browser authorization. The previous public release is `0.1.0`, tag `v0.1.0` at `c42559c`.
+- Version `0.2.0` is published publicly and confirmed as npm latest. Implementation: `82ed628`; registry gitHead and release tag `v0.2.0`: `6767175ba8cbfa55459ce52fd33981e4987f6f79`. Package: https://www.npmjs.com/package/atlas-lite-mcp. The previous public release is `0.1.0`, tag `v0.1.0` at `c42559c`.
 - The owner explicitly requested deletion tools. This supersedes the original no-DELETE implementation requirement.
 - `page_delete` accepts a page URL or ID and optional site, and moves a published Confluence page to trash. It does not expose permanent purge, draft deletion or recursive page-tree deletion.
 - `issue_delete` accepts an issue key or URL and optional site. It permanently deletes the issue; subtasks are included only with explicit `deleteSubtasks: true`. Both tools carry destructive MCP annotations.
@@ -16,15 +16,15 @@
 - Node 22.21.1: typecheck, 464 offline tests across 31 files, and build passed.
 - Coverage includes both actual MCP tool calls with mocked HTTP, empty 204 responses, classic/scoped routing, shared-host credentials, invalid targets, site ambiguity/conflicts, 400/403/404/500 failures, ambiguous network failure, and subtask opt-in. Query parameters embedded in a pasted URL cannot enable purge, draft deletion or cascade deletion.
 - Fresh tarball installation on Node 20.19.0 and Node 22.21.1: CLI version/help, npm exec, private init (mode 600), stdio initialization, 19 tools, destructive annotations, missing-config errors and clean stderr passed.
+- Fresh public-registry installation with an empty temporary npm cache passed on Node 22.21.1: CLI version/help, npm exec, private init, stdio initialization, all 19 tools with destructive annotations, missing-config errors and clean stderr. Registry SHA-1 matches the verified release archive.
 - Tool catalogue: 9,316 characters, below the 12,000-character budget.
 - Tarball: 44 files, 192,489 unpacked bytes; SHA-1 `e73469171dbfc5944ec8d7747a2f58eed4658390`. Boundary: package.json, README.md, LICENSE, dist/**. Temporary installs are removed after verification.
 
-## Remaining release steps
+## Owner update and remaining live checks
 
-1. Commit/push the completed changes, publish 0.2.0 through npm, confirm registry availability, and push tag v0.2.0 at the published source commit.
-2. Verify a fresh registry installation and record its source commit and release evidence here.
-3. The owner upgrades with `npm install -g atlas-lite-mcp@0.2.0` and restarts the relevant MCP sessions. No re-init or new credentials are required unless Atlassian denies deletion permissions/scopes.
-4. Actual deletion permissions and live deletion behavior still require an explicitly designated disposable target. No scratch target is inferred from business content.
+1. Upgrade using `npm install -g atlas-lite-mcp@0.2.0 --prefer-online`, then check `atlas-lite-mcp --version` and restart relevant MCP sessions. Existing sites.json and client registrations remain usable; no re-init is required.
+2. Actual deletion permissions and live deletion behavior still require an explicitly designated disposable target. No scratch target is inferred from business content. Scoped tokens may need the delete scopes described in README.
+3. npm's first browser authorization expired. The owner completed the second authorization; publication succeeded after registry processing. The agent verified availability and a fresh registry install, then pushed the matching release tag.
 
 ## Standing instructions
 
