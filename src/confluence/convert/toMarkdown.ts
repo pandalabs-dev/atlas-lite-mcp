@@ -1,6 +1,7 @@
 import { type AnyNode, type Element, isCDATA, isTag, isText } from 'domhandler';
 import { decodeHTML } from 'entities';
 import { tokenText } from '../../core/placeholders.js';
+import { escapeMarkdownText as escapeText } from '../../markdown/escape.js';
 import { parseStorage, rawText, textOf } from '../storage/dom.js';
 import { collectStoragePlaceholders, isPlainCodeMacro, LAYOUT_TAGS, type StoragePlaceholder } from '../storage/placeholders.js';
 
@@ -14,10 +15,6 @@ const HEADING_RE = /^h([1-6])$/;
 /** Decoded text with nbsp as a space and whitespace runs collapsed (not trimmed). */
 function normalise(text: string): string {
   return decodeHTML(text).replace(/\s+/g, ' ');
-}
-
-function escapeText(text: string): string {
-  return text.replace(/[\\*_`[\]]/g, '\\$&');
 }
 
 function codeSpan(text: string): string {
@@ -80,13 +77,13 @@ class Renderer {
     return { start: node.startIndex ?? 0, end: (node.endIndex ?? this.src.length - 1) + 1 };
   }
 
-  /** 'out' skips the node, 'in' renders it, 'partial' descends into its children (tokens and code macros render whole). */
+  /** Partial ancestors are traversed so an enclosing layout or macro is never copied into its own section. */
   private overlap(node: AnyNode): 'in' | 'out' | 'partial' {
     if (!this.within) return 'in';
     const { start, end } = this.span(node);
     if (end <= this.within.start || start >= this.within.end) return 'out';
     if (start >= this.within.start && end <= this.within.end) return 'in';
-    return isTag(node) && (this.token(node) || isPlainCodeMacro(node)) ? 'in' : 'partial';
+    return 'partial';
   }
 
   private token(el: Element): StoragePlaceholder | undefined {

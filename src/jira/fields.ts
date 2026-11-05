@@ -36,6 +36,19 @@ export interface FieldMeta {
   allowedValues?: { id: string; name?: string; value?: string }[];
 }
 
+/** Exact ids win; duplicate display names must never silently select the wrong custom field. */
+export function matchField<T extends { id: string; name: string }>(fields: T[], raw: string): T | undefined {
+  const wanted = raw.trim().toLowerCase();
+  const byId = fields.find((f) => f.id.toLowerCase() === wanted);
+  if (byId) return byId;
+  const matches = fields.filter((f) => f.name.toLowerCase() === wanted);
+  if (matches.length > 1) {
+    const ids = matches.slice(0, 5).map((f) => f.id).join(', ');
+    throw new AtlasError(`Several fields match "${raw.trim()}"; use a field id: ${ids}${matches.length > 5 ? ` (and ${matches.length - 5} more)` : ''}.`);
+  }
+  return matches[0];
+}
+
 const MAX_ALLOWED = 10;
 const SPRINT = 'com.pyxis.greenhopper.jira:gh-sprint';
 /** Set by `issue_create` itself, so never reported as missing. */
@@ -157,8 +170,7 @@ export async function resolveFields(
   const fields: Record<string, unknown> = {};
   const names: string[] = [];
   for (const [key, value] of Object.entries(input)) {
-    const wanted = key.trim().toLowerCase();
-    const field = meta.find((f) => f.id.toLowerCase() === wanted) ?? meta.find((f) => f.name.toLowerCase() === wanted);
+    const field = matchField(meta, key);
     if (field === undefined) throw new AtlasError(`Field "${key.trim()}" is not available for ${label}.`);
     // Without the token map an existing description would lose its media, mentions and panels silently.
     if (field.id === 'description') throw new AtlasError('Pass description as its own parameter.');

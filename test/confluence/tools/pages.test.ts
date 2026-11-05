@@ -52,7 +52,7 @@ describe('page_get', () => {
   });
 
   it('page_get section shows only that section with page-wide numbers', async () => {
-    expect((await run('page_get', { id: '7', section: 'left' })).text).toBe('# Costs > Left\nPage 7 in DOCS, v13\n\nAna\n\n{{atlas:6}} [image: ana.png]');
+    expect((await run('page_get', { id: '7', section: 'left' })).text).toBe('# Costs > Left\nPage 7 in DOCS, v13\n\nAna\n\n{{atlas:7}} [image: ana.png]');
   });
 
   it('page_get outline and storage', async () => {
@@ -123,6 +123,28 @@ describe('page_edit', () => {
 });
 
 describe('page_update_section', () => {
+  it.each([
+    '<ac:structured-macro ac:name="info"><ac:rich-text-body><h2>Inner</h2><p>Keep</p></ac:rich-text-body></ac:structured-macro>',
+    '<h2>Inner</h2><ac:layout><ac:layout-section ac:type="two_equal"><ac:layout-cell><p>Left</p></ac:layout-cell><ac:layout-cell><p>Right</p></ac:layout-cell></ac:layout-section></ac:layout>',
+  ])('does not PUT an unchanged rich section after a real tool read', async (storage) => {
+    const { rt, calls } = testRuntime([
+      { method: 'GET', path: PAGE, json: { id: '7', title: 'Rich', spaceId: '100', version: { number: 13 }, body: { storage: { value: storage } } } },
+      ...routes.slice(1),
+    ]);
+    const read = await executeTool(byName('page_get'), { id: '7', section: 'Inner' }, rt);
+    expect(read.isError).toBe(false);
+    const result = await executeTool(byName('page_update_section'), { url: '7', heading: 'Inner', markdown: read.text.split('\n').slice(3).join('\n') }, rt);
+    expect(result).toEqual({ text: 'No change to section "Inner" in "Rich" (v13)', isError: false });
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('rejects enclosing layout tokens without making a PUT request', async () => {
+    const { text, isError, calls } = await runWithCalls('page_update_section', { url: '7', heading: 'Left', markdown: '{{atlas:6}}' });
+    expect(isError).toBe(true);
+    expect(text).toMatch(/outside this section/);
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
   it('page_update_section restores tokens and reports drops', async () => {
     const { text, calls } = await runWithCalls('page_update_section', { url: '7', heading: 'Left', markdown: 'Ana and Ivan' });
     expect(text).toBe('Updated section "Left" in "Costs" v13 -> v14\nDropped: 1 item: [image: ana.png]');
@@ -133,7 +155,7 @@ describe('page_update_section', () => {
 
   it('restores tokens in a fresh runtime that never served page_get', async () => {
     const { rt, calls } = testRuntime(routes);
-    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana\n\n{{atlas:6}} [image: ana.png]' }, rt);
+    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana\n\n{{atlas:7}} [image: ana.png]' }, rt);
     expect(r).toEqual({ text: 'No change to section "Left" in "Costs" (v13)', isError: false });
     expect(calls.filter((c) => c.method === 'PUT')).toHaveLength(0);
   });
@@ -141,7 +163,7 @@ describe('page_update_section', () => {
   it('restores tokens after page_get in the same runtime', async () => {
     const { rt, calls } = testRuntime(routes);
     await executeTool(byName('page_get'), { id: '7', section: 'Left' }, rt);
-    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana and Ivan\n\n{{atlas:6}} [image: ana.png]' }, rt);
+    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana and Ivan\n\n{{atlas:7}} [image: ana.png]' }, rt);
     expect(r).toEqual({ text: 'Updated section "Left" in "Costs" v13 -> v14', isError: false });
     expect(lastPut(calls).body.value).toBe(page.replace('<p>Ana</p>', '<p>Ana and Ivan</p>'));
   });
@@ -150,7 +172,7 @@ describe('page_update_section', () => {
     const v12: Route = { ...v13, times: 1, json: { id: '7', title: 'Costs', spaceId: '100', version: { number: 12 }, body: { storage: { value: '<h2>Left</h2><p>Old</p>' } } } };
     const { rt, calls } = testRuntime([v12, ...routes]);
     await executeTool(byName('page_get'), { id: '7' }, rt);
-    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana and Ivan\n\n{{atlas:6}} [image: ana.png]' }, rt);
+    const r = await executeTool(byName('page_update_section'), { url: '7', heading: 'Left', markdown: 'Ana and Ivan\n\n{{atlas:7}} [image: ana.png]' }, rt);
     expect(r).toEqual({ text: 'Updated section "Left" in "Costs" v13 -> v14', isError: false });
     expect(lastPut(calls).body.value).toBe(page.replace('<p>Ana</p>', '<p>Ana and Ivan</p>'));
   });

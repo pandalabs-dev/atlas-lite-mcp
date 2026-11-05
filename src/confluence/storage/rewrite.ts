@@ -1,3 +1,4 @@
+import { AtlasError } from '../../core/errors.js';
 import { markdownToStorage } from '../convert/fromMarkdown.js';
 import { parseStorage } from './dom.js';
 import type { StoragePlaceholder } from './placeholders.js';
@@ -33,8 +34,15 @@ export function replaceSection(
 ): { storage: string; dropped: StoragePlaceholder[]; unknown: number[] } {
   const { start, end } = findSection(storage, parseStorage(storage), heading);
   const { storage: content, used, unknown } = convert(markdown, placeholders);
-  const dropped = [...placeholders.values()]
-    .filter((p) => p.start >= start && p.start < end && !used.has(p.n))
+  const preserved = [...placeholders.values()].filter((p) => used.has(p.n));
+  if (preserved.some((p) => p.start < end && p.end > start && (p.start < start || p.end > end))) {
+    throw new AtlasError('A supplied token extends outside this section; re-read the section or use page_edit for exact storage changes.');
+  }
+  const missing = [...placeholders.values()].filter((p) =>
+    p.start >= start && p.end <= end && !preserved.some((ancestor) => ancestor.start <= p.start && ancestor.end >= p.end),
+  );
+  const dropped = missing
+    .filter((p) => !missing.some((ancestor) => ancestor.n !== p.n && ancestor.start <= p.start && ancestor.end >= p.end))
     .sort((a, b) => a.n - b.n);
   return { storage: storage.slice(0, start) + content + storage.slice(end), dropped, unknown };
 }

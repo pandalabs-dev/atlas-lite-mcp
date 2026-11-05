@@ -178,6 +178,17 @@ describe('issue_create', () => {
 });
 
 describe('issue_update', () => {
+  it('does not PUT when an editable display name matches two field ids', async () => {
+    const { rt, calls } = testRuntime([{ method: 'GET', path: `${ISSUE}/editmeta`, json: { fields: {
+      customfield_1: { name: 'Severity', schema: { type: 'string' } },
+      customfield_2: { name: 'Severity', schema: { type: 'string' } },
+    } } }]);
+    const result = await executeTool(byName('issue_update'), { key: 'DEMO-12', fields: { Severity: 'High' } }, rt);
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/Several fields.*customfield_1.*customfield_2/);
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
   it('sends an explicit null to clear an optional Jira field', async () => {
     const { isError, calls } = await runWithCalls('issue_update', { key: 'DEMO-12', fields: { Priority: null } });
     expect(isError).toBe(false);

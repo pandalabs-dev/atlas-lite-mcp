@@ -100,6 +100,16 @@ describe('jiraModule', () => {
 });
 
 describe('issue_get', () => {
+  it('rejects ambiguous extra-field names before reading a value from the wrong field', async () => {
+    const { rt, calls } = testRuntime([{ method: 'GET', path: '/rest/api/3/field', json: [
+      { id: 'customfield_1', name: 'Severity' }, { id: 'customfield_2', name: 'Severity' },
+    ] }]);
+    const result = await executeTool(byName('issue_get'), { key: 'DEMO-12', fields: ['Severity'] }, rt);
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/Several fields.*customfield_1.*customfield_2/);
+    expect(calls).toHaveLength(1);
+  });
+
   it('issue_get prints a compact header and the description with tokens', async () => {
     const r = await run('issue_get', { key: 'https://northstar.atlassian.net/browse/DEMO-12' });
     expect(r.isError).toBe(false);

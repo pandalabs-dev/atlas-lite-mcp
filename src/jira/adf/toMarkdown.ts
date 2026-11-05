@@ -1,4 +1,5 @@
 import { type Placeholder, tokenText } from '../../core/placeholders.js';
+import { escapeMarkdownText as escapeText } from '../../markdown/escape.js';
 
 export interface AdfMark {
   type: string;
@@ -129,10 +130,6 @@ function hintFor(node: AdfNode): string {
     .trim();
 }
 
-function escapeText(text: string): string {
-  return text.replace(/[\\*_`[\]]/g, '\\$&');
-}
-
 function codeSpan(text: string): string {
   const body = text.replace(/\n/g, ' ');
   if (!body.includes('`')) return `\`${body}\``;
@@ -181,6 +178,11 @@ function indent(text: string, by: number): string {
  * (no hard breaks, which a table line cannot carry).
  */
 function isInlineCell(cell: AdfNode): boolean {
+  for (const key of ['colspan', 'rowspan']) {
+    const span = cell.attrs?.[key];
+    if (span !== undefined && span !== null && span !== 1) return false;
+  }
+  if (cell.attrs?.colwidth != null) return false;
   const [only, ...rest] = cell.content ?? [];
   if (!only || rest.length > 0 || only.type !== 'paragraph') return false;
   return (only.content ?? []).every((n) =>

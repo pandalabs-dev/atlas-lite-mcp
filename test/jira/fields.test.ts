@@ -63,6 +63,12 @@ function srtWith(routes: Route[]): { srt: SiteRuntime; calls: ReturnType<typeof 
 const { srt } = srtWith([{ method: 'GET', path: USERS, json: [ana] }]);
 
 describe('resolveFields', () => {
+  it('requires a field id when display names collide', async () => {
+    const duplicate: FieldMeta[] = ['customfield_10001', 'customfield_10002'].map((id) => ({ id, name: 'Severity', required: false, hasDefaultValue: false, schema: { type: 'string' } }));
+    await expect(resolveFields(srt, duplicate, { Severity: 'High' }, 'DEMO-12')).rejects.toThrow(/Several fields.*customfield_10001.*customfield_10002/);
+    expect((await resolveFields(srt, duplicate, { customfield_10002: 'High' }, 'DEMO-12')).fields).toEqual({ customfield_10002: 'High' });
+  });
+
   it('preserves explicit null for clearing optional fields without resolving a user named null', async () => {
     const { srt: s, calls } = srtWith([]);
     const input = { priority: null, duedate: null, customfield_10060: null, customfield_10042: null, environment: null, parent: null, Sprint: null };

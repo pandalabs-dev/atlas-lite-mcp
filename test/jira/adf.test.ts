@@ -17,6 +17,18 @@ const roundTrip = (d: AdfDoc): AdfDoc => {
 };
 
 describe('ADF to markdown', () => {
+  it.each(['&copy;', '&#123;', '~~keep~~', '~~~ keep', '<b>literal</b>', '<https://example.com>', 'www.example.com', 'a@example.com'])('round-trips literal text %s without interpreting markup', (text) => {
+    const original = doc(p(t(text)));
+    expect(roundTrip(original)).toEqual(original);
+  });
+
+  it.each([{ colspan: 2 }, { rowspan: 2 }, { colwidth: [200] }])('preserves table geometry %j as an opaque token', (attrs) => {
+    const table: AdfNode = { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableHeader', attrs, content: [p(t('Keep'))] }] }] };
+    const original = doc(table);
+    expect(adfToMarkdown(original).placeholders[0]?.original).toEqual(table);
+    expect(roundTrip(original)).toEqual(original);
+  });
+
   it('renders supported nodes and tokens', () => {
     const { markdown, placeholders } = adfToMarkdown(fx.description);
     expect(markdown).toContain(

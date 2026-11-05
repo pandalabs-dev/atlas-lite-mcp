@@ -16,8 +16,9 @@ describe('storage to markdown', () => {
       [3, 'emoticon: smile', false],
       [4, 'panel: info, Budget is frozen.', true],
       [5, 'status: TBD', false],
-      [6, 'image: ana.png', true],
-      [7, 'tasks: 1', true],
+      [6, 'layout', true],
+      [7, 'image: ana.png', true],
+      [8, 'tasks: 1', true],
     ]);
     const toc = placeholders[0]!;
     expect(page.slice(toc.start, toc.end)).toBe('<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="m-toc"/>');
@@ -33,8 +34,8 @@ describe('storage to markdown', () => {
     expect(out).toContain('| **Item** | **Q1 2026** | **Q2** |\n| --- | --- | --- |\n| Hosting | 100 | 120 |');
     expect(out).toContain('See [the sheet](https://example.com/a?b=1&c=2) and `cfg.json`.');
     expect(out).toContain('```ts\nif (a < b && c) {}\n```');
-    expect(out).toContain('## Left\n\nAna\n\n{{atlas:6}} [image: ana.png]');
-    expect(out).toContain('Marko\n\n## Done\n\n{{atlas:7}} [tasks: 1]');
+    expect(out).toContain('{{atlas:6}} [layout]');
+    expect(out).toContain('## Done\n\n{{atlas:8}} [tasks: 1]');
     expect(out).not.toMatch(/ac:|ri:|<\/?p>/);
   });
 
@@ -42,8 +43,8 @@ describe('storage to markdown', () => {
     const start = page.indexOf('<h2>Left</h2>') + '<h2>Left</h2>'.length;
     const end = page.indexOf('</ac:layout-cell>');
     const r = storageToMarkdown(page, { within: { start, end } });
-    expect(r.markdown.trim()).toBe('Ana\n\n{{atlas:6}} [image: ana.png]');
-    expect(r.placeholders).toHaveLength(7);
+    expect(r.markdown.trim()).toBe('Ana\n\n{{atlas:7}} [image: ana.png]');
+    expect(r.placeholders).toHaveLength(8);
   });
 
   it('renders a whole table range as a GFM table', () => {
@@ -146,6 +147,7 @@ describe('storage to markdown', () => {
       '<table><tbody><tr><td><ac:emoticon ac:name="b"/></td></tr></tbody></table><ul><li><ac:emoticon ac:name="c"/></li></ul>' +
       '<blockquote><ac:emoticon ac:name="d"/></blockquote><p><ac:emoticon ac:name="e"/></p>';
     expect(storageToMarkdown(s).placeholders.map((x) => [x.hint, x.block])).toEqual([
+      ['layout', true],
       ['emoticon: a', true],
       ['emoticon: b', true],
       ['emoticon: c', true],

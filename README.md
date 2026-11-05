@@ -170,11 +170,13 @@ There are 17 tools: the 16 page, table and issue tools accept optional `site`; `
 | `issue_comment` | Add a comment using `key` and `markdown`. |
 | `sites_list` | List names, hosts, default project/space and product reachability via read-only probes. |
 
-To clear an optional Jira field, pass `null` in `issue_update.fields`, for example `{"Assignee": null, "Due date": null}`. Use an empty array to clear labels or other lists. Required fields cannot be cleared; Jira still enforces its field and workflow rules. To clear the description, use the separate `description` parameter with an empty string.
+To clear an optional Jira field, pass `null` in `issue_update.fields`, for example `{"Assignee": null, "Due date": null}`. Use an empty array to clear labels or other lists. Required fields cannot be cleared; Jira still enforces its field and workflow rules. To clear the description, use the separate `description` parameter with an empty string. When several fields share a display name, the tool lists candidate field IDs; use the intended ID instead of the ambiguous name.
 
 ## Placeholder tokens
 
 Markdown reads represent unsupported rich content as `{{atlas:N}} [hint]`, for example `{{atlas:3}} [macro: toc]`. Keep the token in submitted markdown to keep the underlying macro, image, attachment or ADF node; the trailing hint is ignored on restoration. Tokens are scoped to the same site and page or issue, not portable identifiers.
+
+Confluence column layouts appear as an opaque `{{atlas:N}} [layout]` token. Use `page_get` with `format: outline` to find headings, then `section` to read or edit inside a column or panel. Nested content keeps page-wide token numbers, so a view may skip numbers. Restoring an enclosing layout or panel token into its own section is rejected. Jira tables with merged cells or explicit column widths also use an opaque token to preserve their geometry. Re-read content after upgrading the server before reusing any earlier token numbers.
 
 `page_update_section`, `page_append`, `issue_update` descriptions and `issue_comment` restore supported token references. Omitting a token from a replaced section or description removes that content and reports it as `Dropped:`. These four restoration paths omit unknown tokens and report them as `Dropped:`; Jira `issue_create` does the same for unknown description tokens. Confluence `page_create` and `page_comment` do not restore page token references: they treat them as ordinary literal text without a `Dropped:` warning. A changed page or issue causes the map to be rebuilt from current content; re-read before editing if it changed, since token numbers are not a conflict-proof edit handle.
 

@@ -30,6 +30,13 @@ describe('restoreStorageTokens', () => {
 });
 
 describe('replaceSection', () => {
+  it.each(['&amp;copy;', '~~keep~~', '~~~ keep', '&lt;https://example.com&gt;'])('preserves literal text %s through markdown', (text) => {
+    const source = `<h2>Literal</h2><p>${text}</p>`;
+    const within = findSection(source, parseStorage(source), 'Literal');
+    const view = storageToMarkdown(source, { within });
+    expect(replaceSection(source, 'Literal', view.markdown, tokens(source)).storage).toBe(source);
+  });
+
   it('shows the section as markdown with tokens', () => {
     const { start, end } = findSection(page, parseStorage(page), 'Gallery');
     expect(storageToMarkdown(page, { within: { start, end } }).markdown.trim()).toBe(
@@ -77,7 +84,7 @@ describe('replaceSection', () => {
   it('keeps the rich page byte-identical outside the targeted section', () => {
     const rich = fixture('confluence/rich-page.xml');
     const { start, end } = findSection(rich, parseStorage(rich), 'Left');
-    const r = replaceSection(rich, 'Left', 'Ana and Ivan\n\n{{atlas:6}} [image: ana.png]', tokens(rich));
+    const r = replaceSection(rich, 'Left', 'Ana and Ivan\n\n{{atlas:7}} [image: ana.png]', tokens(rich));
     expect(r.storage.slice(0, start)).toBe(rich.slice(0, start));
     expect(r.storage.slice(r.storage.length - (rich.length - end))).toBe(rich.slice(end));
     expect(r.storage.slice(start, r.storage.length - (rich.length - end))).toBe(

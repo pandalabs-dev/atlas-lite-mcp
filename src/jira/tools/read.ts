@@ -8,7 +8,7 @@ import { parseIssueRef } from '../../core/url.js';
 import { markdownToAdf } from '../adf/fromMarkdown.js';
 import { adfToMarkdown, type AdfDoc, type AdfPlaceholder } from '../adf/toMarkdown.js';
 import { addComment, doTransition, getIssue, getTransitions, listFields, searchIssues, type JiraIssue } from '../api.js';
-import { displayValue } from '../fields.js';
+import { displayValue, matchField } from '../fields.js';
 import { buildJql } from '../jql.js';
 
 const DEFAULT_FIELDS = ['summary', 'issuetype', 'status', 'priority', 'assignee', 'reporter', 'labels', 'parent', 'created', 'updated'];
@@ -70,8 +70,7 @@ async function resolveExtras(srt: SiteRuntime, names: string[]): Promise<{ id: s
   if (names.length === 0) return [];
   const all = await listFields(srt);
   return names.map((raw) => {
-    const wanted = raw.trim().toLowerCase();
-    const field = all.find((f) => f.id.toLowerCase() === wanted) ?? all.find((f) => f.name.toLowerCase() === wanted);
+    const field = matchField(all, raw);
     if (field === undefined) throw new AtlasError(`Unknown field "${raw.trim()}".`);
     return { id: field.id, name: field.name };
   });

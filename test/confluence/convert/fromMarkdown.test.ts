@@ -67,7 +67,8 @@ describe('markdown to storage', () => {
 
   it('round-trips text with &, < and | through storage and back', () => {
     const md = '| a |\n| --- |\n| x \\| y & <z> |';
-    expect(storageToMarkdown(markdownToStorage(md)).markdown.trim()).toBe(md);
+    const storage = markdownToStorage(md);
+    expect(markdownToStorage(storageToMarkdown(storage).markdown)).toBe(storage);
   });
 
   it('round-trips escaped line-start markers and hard breaks', () => {

@@ -9,7 +9,7 @@ export interface StoragePlaceholder extends Placeholder<string> {
   end: number;
 }
 
-/** Layout elements render as transparent containers and are never tokenised. */
+/** Layout children are transparent only while reading a range inside the opaque outer layout. */
 export const LAYOUT_TAGS = new Set(['ac:layout', 'ac:layout-section', 'ac:layout-cell']);
 
 const MACRO_TAGS = new Set(['ac:structured-macro', 'ac:macro']);
@@ -60,7 +60,7 @@ export function isPlainCodeMacro(el: Element): boolean {
 }
 
 function isPlaceholderElement(el: Element): boolean {
-  if (LAYOUT_TAGS.has(el.name) || isPlainCodeMacro(el)) return false;
+  if ((LAYOUT_TAGS.has(el.name) && el.name !== 'ac:layout') || isPlainCodeMacro(el)) return false;
   return el.name.startsWith('ac:') || el.name.startsWith('ri:') || el.name === 'time';
 }
 
@@ -88,6 +88,8 @@ function rawHint(el: Element): string {
     return labelled('macro', name);
   }
   switch (el.name) {
+    case 'ac:layout':
+      return 'layout';
     case 'ac:image': {
       const ref = findTag(el, (c) => c.name.startsWith('ri:') && (c.attribs['ri:filename'] !== undefined || c.attribs['ri:value'] !== undefined));
       return labelled('image', ref ? attr(ref, 'ri:filename') || attr(ref, 'ri:value') : '');
@@ -128,7 +130,8 @@ function isBlock(el: Element): boolean {
 }
 
 /**
- * Every outermost element the markdown view cannot express, numbered 1..N in document order over the whole body.
+ * Unsupported elements numbered in document order, including nested content in layouts and rich macro bodies.
+ * Nested tokens are used by section reads; a full ancestor token already preserves them on write.
  * `doc` must be `parseStorage(storage)`.
  */
 export function collectStoragePlaceholders(storage: string, doc: Document): StoragePlaceholder[] {
@@ -141,6 +144,10 @@ export function collectStoragePlaceholders(storage: string, doc: Document): Stor
       const start = node.startIndex;
       const end = node.endIndex + 1;
       out.push({ n: out.length + 1, hint: hintFor(node), original: storage.slice(start, end), block: isBlock(node), start, end });
+      if (node.name === 'ac:layout') node.children.forEach(visit);
+      else if (MACRO_TAGS.has(node.name)) {
+        for (const body of childTags(node).filter((c) => c.name === 'ac:rich-text-body')) body.children.forEach(visit);
+      }
       return;
     }
     node.children.forEach(visit);
