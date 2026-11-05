@@ -11,29 +11,32 @@ A local stdio MCP server for Jira Cloud and Confluence Cloud, designed for fast,
 
 ## Install
 
-Register with Claude Code:
+Install the CLI from npm, then configure your Atlassian credentials:
 
 ```sh
-claude mcp add atlas -- npx -y atlas-lite-mcp
+npm install -g atlas-lite-mcp
+atlas-lite-mcp init
 ```
 
-The `--` separates Claude options from the server launch command. Claude Code registers this at local scope by default, private to you in the current project. Configure credentials before launching it as described below.
+Installation and `init` do not change your MCP client settings. Choose the client you want to use and register the server yourself.
 
-Register with Codex:
+Claude Code:
 
 ```sh
-codex mcp add atlas -- npx -y atlas-lite-mcp
+claude mcp add atlas -- atlas-lite-mcp
+```
+
+The `--` separates Claude options from the server launch command. Claude Code registers this at local scope by default, private to you in the current project. Add `--scope user` before `atlas` if you want it available across your projects.
+
+Codex:
+
+```sh
+codex mcp add atlas -- atlas-lite-mcp
 ```
 
 Codex saves this in your user MCP configuration. Start a new client session after registration and ask it to call `sites_list` once credentials are configured.
 
-Or install the CLI globally:
-
-```sh
-npm i -g atlas-lite-mcp
-```
-
-These are the intended registry install commands. Publication and a registry install have not yet been verified for this release. To run the current source checkout, see Development.
+Without a global installation, run `npx -y atlas-lite-mcp init` and use `npx -y atlas-lite-mcp` as the client launch command, for example `claude mcp add atlas -- npx -y atlas-lite-mcp`. To run a source checkout, see Development.
 
 ## Quick setup with environment variables
 
@@ -56,7 +59,7 @@ The token is a placeholder, not a real credential. Supply the real value through
 atlas-lite-mcp init
 ```
 
-Or, without a global install, use `npx -y atlas-lite-mcp init` after publication.
+Or, without a global install, use `npx -y atlas-lite-mcp init`.
 
 The wizard asks for a site name, URL, email, token or environment-variable name, token type, and optional default Jira project and Confluence space. An uppercase variable name such as `NORTHSTAR_ATLASSIAN_TOKEN` is saved as an environment reference rather than as a literal token. The token prompt suppresses terminal echo and readline history.
 
@@ -215,7 +218,7 @@ node dist/index.js --version
 
 The version command should print `0.1.0`. Run `node dist/index.js` for the local stdio server. `pnpm test` is the offline unit suite and excludes `test/smoke/**`. Keep `ATLAS_ALLOW_NETWORK` unset for offline checks. The publish hook runs exactly `pnpm run typecheck && pnpm test && pnpm run build`, not smoke tests. `npm pack --dry-run` inspects packaging without publishing; build first because `prepublishOnly` runs on publish, not pack. The package boundary is `package.json`, `README.md`, `LICENSE` and `dist/**` only.
 
-To use a source checkout before npm publication, run `node dist/index.js init` from the repository, then register the built entry point using its absolute path:
+For source development, run `node dist/index.js init` from the repository, then register the built entry point using its absolute path:
 
 ```sh
 claude mcp add --scope user atlas -- node /absolute/path/to/atlas-lite-mcp/dist/index.js
