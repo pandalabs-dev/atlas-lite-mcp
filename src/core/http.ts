@@ -2,7 +2,7 @@ import type { Site } from './config.js';
 import { AtlasError } from './errors.js';
 
 export type Product = 'jira' | 'confluence';
-export type HttpMethod = 'GET' | 'POST' | 'PUT';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 export interface RequestOptions {
   query?: Record<string, string | number | undefined>;

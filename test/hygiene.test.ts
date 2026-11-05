@@ -31,10 +31,6 @@ describe('repository hygiene', () => {
     for (const f of files) expect(read(f), f).not.toMatch(/[\u2013\u2014]/);
   });
 
-  it('never uses the DELETE HTTP method', () => {
-    for (const f of files.filter((f) => !f.endsWith('hygiene.test.ts'))) expect(read(f), f).not.toMatch(/['"`]DELETE['"`]/);
-  });
-
   it.skipIf(process.env.ATLAS_ALLOW_NETWORK === '1')('blocks the global fetch in unit tests', () => {
     expect(() => fetch('https://example.com')).toThrow(/Network disabled in unit tests/);
   });

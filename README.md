@@ -96,7 +96,7 @@ Names, project keys and space keys here are examples, not built-in defaults. Add
 chmod 600 ~/.config/atlas-lite-mcp/sites.json
 ```
 
-The 16 page, table and issue tools accept optional `site`, matched case-insensitively by name or hostname; `sites_list` takes no arguments and lists all configured sites. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, pass the explicit profile name with either a URL or a bare ID/key. An ambiguous hostname asks for the profile name instead of choosing credentials arbitrarily.
+The 18 page, table and issue tools accept optional `site`, matched case-insensitively by name or hostname; `sites_list` takes no arguments and lists all configured sites. A page or issue URL selects its configured hostname; a conflicting explicit `site` fails. Bare page IDs and issue keys use the only configured site, or require `site` if several are configured. For profiles sharing a hostname, pass the explicit profile name with either a URL or a bare ID/key. An ambiguous hostname asks for the profile name instead of choosing credentials arbitrarily.
 
 ## Scoped tokens
 
@@ -119,7 +119,7 @@ Set `ATLASSIAN_TOKEN_TYPE='scoped'` for env-only setup, or use this site entry:
 
 Both token types use Basic authentication with email and API token. Scoped requests go through `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/...` or `https://api.atlassian.com/ex/confluence/{cloudId}/wiki/...`; classic requests use the configured site origin.
 
-Choose scopes against the REST operations you actually use, not the Rovo `agent-interface` scopes. Jira tools read/search issues, fields, create/edit metadata and transitions; writes create/update issues, transition them or add comments. User resolution and probes also read user profiles. Confluence tools read pages and spaces, search via CQL, create/update pages and add footer comments. Consult the scope requirements in the [Jira REST reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/) and [Confluence REST v2 reference](https://developer.atlassian.com/cloud/confluence/rest/v2/intro/) plus the [CQL search operation](https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content/#api-wiki-rest-api-content-search-get). No universal minimal scope set or cross-product token coverage has been live-verified for this release. If a token only covers one product, the other product's reachability probe may fail; use separate named profiles when needed.
+Choose scopes against the REST operations you actually use, not the Rovo `agent-interface` scopes. Jira tools read/search issues, fields, create/edit metadata and transitions; writes create/update/delete issues, transition them or add comments. User resolution and probes also read user profiles. Confluence tools read pages and spaces, search via CQL, create/update/trash pages and add footer comments. Deletion requires `delete:issue:jira` (or the classic `write:jira-work` scope) and `delete:page:confluence`, respectively, plus the account's Jira Delete issues or Confluence page-delete permissions. Consult the scope requirements in the [Jira delete reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-delete) and [Confluence delete reference](https://developer.atlassian.com/cloud/confluence/rest/v2/api-group-page/#api-pages-id-delete), along with the [Jira REST reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/), [Confluence REST v2 reference](https://developer.atlassian.com/cloud/confluence/rest/v2/intro/) and [CQL search operation](https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content/#api-wiki-rest-api-content-search-get). No universal minimal scope set or cross-product token coverage has been live-verified for this release. If a token only covers one product, the other product's reachability probe may fail; use separate named profiles when needed.
 
 ## Claude Desktop and Cursor
 
@@ -151,7 +151,7 @@ Setup references: [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Claud
 
 ## Tools
 
-There are 17 tools: the 16 page, table and issue tools accept optional `site`; `sites_list` takes no arguments and lists all configured sites. Page write tools take `url`, which also accepts a bare page ID. Issue tools take `key`, which also accepts an issue URL. Searches default to 10 pages or 20 issues.
+There are 19 tools: the 18 page, table and issue tools accept optional `site`; `sites_list` takes no arguments and lists all configured sites. Page write tools take `url`, which also accepts a bare page ID. Issue tools take `key`, which also accepts an issue URL. Searches default to 10 pages or 20 issues.
 
 | Tool | Purpose and main inputs |
 | --- | --- |
@@ -160,6 +160,7 @@ There are 17 tools: the 16 page, table and issue tools accept optional `site`; `
 | `page_update_section` | Replace the content under `heading` with `markdown`, preserving supplied placeholder tokens. |
 | `page_append` | Append `markdown` to a page at `url`. |
 | `page_create` | Create from `space`, `title` and `markdown`, with optional `parent` URL or ID. |
+| `page_delete` | Move the published page at `url` to trash. Does not purge pages or delete drafts. |
 | `page_search` | Search by CQL or plain-text `query`, with optional `space` and `limit`. |
 | `page_comment` | Add a footer comment using `url` and `markdown`. |
 | `table_get` | Read a table at `url`; optional `table` is its 1-based index or preceding heading text. |
@@ -169,6 +170,7 @@ There are 17 tools: the 16 page, table and issue tools accept optional `site`; `
 | `issue_search` | Search by JQL or plain-text `query`, with optional `limit`; applies the configured default project when appropriate. |
 | `issue_create` | Create from `type` and `summary`; optional `project`, `description`, `fields`, `labels` and `assignee`. |
 | `issue_update` | Update `key` using `fields` by name or ID, `summary` or markdown `description`. |
+| `issue_delete` | Permanently delete `key`; optional `deleteSubtasks: true` also deletes its subtasks. Default false. |
 | `issue_transition` | Move `key` using a target status or transition name in `to`. |
 | `issue_comment` | Add a comment using `key` and `markdown`. |
 | `sites_list` | List names, hosts, default project/space and product reachability via read-only probes. |
@@ -187,7 +189,9 @@ Use `page_get` with `format: storage` and `page_edit` when exact XHTML is needed
 
 ## Safety
 
-- No delete tools or delete HTTP requests are implemented. Writes still change live content and can remove content inside a replaced section, description or exact-match region; review the target and replacement before approval.
+- `page_delete` moves a published page to Confluence trash, where it can be restored. It does not offer permanent purge, draft deletion or recursive page-tree deletion.
+- `issue_delete` permanently deletes a Jira issue. Jira refuses issues with subtasks unless `deleteSubtasks: true` is explicitly supplied. Both delete tools are marked destructive in MCP annotations and run when called; account permissions and token scopes are enforced by Atlassian.
+- All writes change live content. Section, description and exact-match edits can also remove content. Delete requests are not retried after a network error or 5xx; inspect remote state before retrying an ambiguous result. Rate-limit responses use the normal bounded 429 retry policy.
 - Every successful changed Confluence page PUT increments the page version and sends `atlas-lite-mcp <tool_name>` as its version message. A no-op does not create a new version. Page creation and footer-comment POSTs do not send this message. Jira mutations do not create Confluence-style page versions or carry that message.
 - Confluence page history can help recover edits; it does not undo comments, Jira transitions, notifications or workflow automation side effects.
 - Tokens are never logged, echoed in errors or returned by tools. Server diagnostics use stderr; stdout is reserved for MCP. Page and issue content is still returned to the MCP client, so use an account with only the access you intend to expose.
@@ -216,7 +220,7 @@ npm pack --dry-run
 node dist/index.js --version
 ```
 
-The version command should print `0.1.0`. Run `node dist/index.js` for the local stdio server. `pnpm test` is the offline unit suite and excludes `test/smoke/**`. Keep `ATLAS_ALLOW_NETWORK` unset for offline checks. The publish hook runs exactly `pnpm run typecheck && pnpm test && pnpm run build`, not smoke tests. `npm pack --dry-run` inspects packaging without publishing; build first because `prepublishOnly` runs on publish, not pack. The package boundary is `package.json`, `README.md`, `LICENSE` and `dist/**` only.
+The version command should print `0.2.0`. Run `node dist/index.js` for the local stdio server. `pnpm test` is the offline unit suite and excludes `test/smoke/**`. Keep `ATLAS_ALLOW_NETWORK` unset for offline checks. The publish hook runs exactly `pnpm run typecheck && pnpm test && pnpm run build`, not smoke tests. `npm pack --dry-run` inspects packaging without publishing; build first because `prepublishOnly` runs on publish, not pack. The package boundary is `package.json`, `README.md`, `LICENSE` and `dist/**` only.
 
 For source development, run `node dist/index.js init` from the repository, then register the built entry point using its absolute path:
 

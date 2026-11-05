@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { AtlasError } from './errors.js';
 import type { Runtime } from './runtime.js';
@@ -6,6 +7,7 @@ import type { Runtime } from './runtime.js';
 export interface ToolDef<S extends z.ZodRawShape = z.ZodRawShape> {
   name: string;
   description: string;
+  annotations?: ToolAnnotations;
   shape: S;
   run(args: z.infer<z.ZodObject<S>>, rt: Runtime): Promise<string>;
 }
@@ -46,7 +48,7 @@ export async function executeTool(def: ToolDef, args: unknown, rt: Runtime): Pro
 export function registerModules(server: McpServer, modules: ProductModule[], rt: Runtime): void {
   for (const module of modules) {
     for (const def of module.tools) {
-      server.registerTool(def.name, { description: def.description, inputSchema: def.shape }, async (args: unknown) => {
+      server.registerTool(def.name, { description: def.description, inputSchema: def.shape, annotations: def.annotations }, async (args: unknown) => {
         const { text, isError } = await executeTool(def, args, rt);
         return { content: [{ type: 'text' as const, text }], isError };
       });

@@ -200,6 +200,6 @@ describe('page_append', () => {
 describe('confluenceModule', () => {
   it('registers the page, publish and table tools under the confluence name', () => {
     expect(confluenceModule.name).toBe('confluence');
-    expect(confluenceModule.tools.map((t) => t.name)).toEqual(['page_get', 'page_edit', 'page_update_section', 'page_append', 'page_create', 'page_search', 'page_comment', 'table_get', 'table_update', 'table_add_row']);
+    expect(confluenceModule.tools.map((t) => t.name)).toEqual(['page_get', 'page_edit', 'page_update_section', 'page_append', 'page_delete', 'page_create', 'page_search', 'page_comment', 'table_get', 'table_update', 'table_add_row']);
   });
 });

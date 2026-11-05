@@ -28,6 +28,14 @@ const META_PAGE = 200;
 
 const issuePath = (key: string) => `/rest/api/3/issue/${encodeURIComponent(key)}`;
 
+/** Deletes one issue; Jira refuses issues with subtasks unless explicitly opted in. */
+export async function deleteIssue(rt: SiteRuntime, key: string, deleteSubtasks = false): Promise<void> {
+  await rt.http.request<undefined>('jira', 'DELETE', issuePath(key), {
+    query: { deleteSubtasks: String(deleteSubtasks) },
+    notFound: `issue ${key}`,
+  });
+}
+
 export async function getIssue(rt: SiteRuntime, key: string, fields: string[]): Promise<JiraIssue> {
   return rt.http.request<JiraIssue>('jira', 'GET', issuePath(key), {
     query: { fields: fields.join(',') },

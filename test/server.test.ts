@@ -7,7 +7,7 @@ import { createServer, packageVersion } from '../src/server.js';
 import { northstar, testRuntime } from './helpers/runtime.js';
 
 const SETUP = 'No Atlassian sites are configured. Run "npx atlas-lite-mcp init" or set ATLASSIAN_URL, ATLASSIAN_EMAIL and ATLASSIAN_TOKEN.';
-const NAMES = ['issue_comment', 'issue_create', 'issue_get', 'issue_search', 'issue_transition', 'issue_update', 'page_append', 'page_comment', 'page_create', 'page_edit', 'page_get', 'page_search', 'page_update_section', 'sites_list', 'table_add_row', 'table_get', 'table_update'];
+const NAMES = ['issue_comment', 'issue_create', 'issue_delete', 'issue_get', 'issue_search', 'issue_transition', 'issue_update', 'page_append', 'page_comment', 'page_create', 'page_delete', 'page_edit', 'page_get', 'page_search', 'page_update_section', 'sites_list', 'table_add_row', 'table_get', 'table_update'];
 
 const clients: Client[] = [];
 
@@ -42,14 +42,35 @@ afterAll(async () => {
 
 describe('server', () => {
   it('reports the package version and name', () => {
-    expect(packageVersion()).toBe('0.1.0');
-    expect(client.getServerVersion()).toEqual({ name: 'atlas-lite-mcp', version: '0.1.0' });
+    expect(packageVersion()).toBe('0.2.0');
+    expect(client.getServerVersion()).toEqual({ name: 'atlas-lite-mcp', version: '0.2.0' });
   });
 
-  it('exposes exactly the catalogue and no delete tools', async () => {
+  it('exposes exactly the catalogue and marks both delete tools as destructive', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(NAMES);
-    expect(tools.some((t) => /delete|remove/i.test(t.name))).toBe(false);
+    for (const name of ['issue_delete', 'page_delete']) {
+      expect(tools.find((t) => t.name === name)?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    }
+  });
+
+  it('calls both delete tools over MCP and returns remote failures as tool errors', async () => {
+    const { rt, calls } = testRuntime([
+      { method: 'DELETE', path: '/wiki/api/v2/pages/7', status: 204 },
+      { method: 'DELETE', path: '/rest/api/3/issue/DEMO-12', status: 204 },
+      { method: 'DELETE', path: '/rest/api/3/issue/DEMO-13', status: 403 },
+    ]);
+    const c = await connect(rt);
+    expect(await c.callTool({ name: 'page_delete', arguments: { url: '7' } })).toMatchObject({
+      isError: false, content: [{ type: 'text', text: 'Moved page 7 to trash on northstar.' }],
+    });
+    expect(await c.callTool({ name: 'issue_delete', arguments: { key: 'DEMO-12' } })).toMatchObject({
+      isError: false, content: [{ type: 'text', text: 'Deleted DEMO-12 on northstar.' }],
+    });
+    expect(await c.callTool({ name: 'issue_delete', arguments: { key: 'DEMO-13' } })).toMatchObject({
+      isError: true, content: [{ type: 'text', text: expect.stringContaining('Access denied') }],
+    });
+    expect(calls).toHaveLength(3);
   });
 
   it('keeps the tools/list payload under 3,000 tokens (chars / 4 < 12,000 chars)', async () => {

@@ -4,7 +4,7 @@ import { formatDropped } from '../../core/placeholders.js';
 import { defineTool, siteParam, type ToolDef } from '../../core/tools.js';
 import { markdownToAdf } from '../adf/fromMarkdown.js';
 import { adfToMarkdown } from '../adf/toMarkdown.js';
-import { createIssue, createMeta, editMeta, getIssue, projectIssueTypes, updateIssue } from '../api.js';
+import { createIssue, createMeta, deleteIssue, editMeta, getIssue, projectIssueTypes, updateIssue } from '../api.js';
 import { formatMissing, missingRequired, resolveFields } from '../fields.js';
 import { findUser } from '../users.js';
 import { issuePlaceholders, issueTarget } from './read.js';
@@ -110,4 +110,20 @@ const issueUpdate = defineTool({
   },
 });
 
-export const writeTools: ToolDef[] = [issueCreate, issueUpdate];
+const issueDelete = defineTool({
+  name: 'issue_delete',
+  description: 'Permanently delete a Jira issue. Subtasks require deleteSubtasks: true.',
+  annotations: { readOnlyHint: false, destructiveHint: true },
+  shape: {
+    key: z.string().describe('Issue key or URL'),
+    deleteSubtasks: z.boolean().optional().describe('Also delete subtasks; default false'),
+    site: siteParam,
+  },
+  async run(args, rt) {
+    const { srt, key } = issueTarget(args, rt);
+    await deleteIssue(srt, key, args.deleteSubtasks);
+    return `Deleted ${key} on ${srt.site.name}${args.deleteSubtasks ? ' including subtasks' : ''}.`;
+  },
+});
+
+export const writeTools: ToolDef[] = [issueCreate, issueUpdate, issueDelete];

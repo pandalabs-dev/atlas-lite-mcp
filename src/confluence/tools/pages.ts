@@ -5,7 +5,7 @@ import { formatDropped } from '../../core/placeholders.js';
 import type { Runtime, SiteRuntime } from '../../core/runtime.js';
 import { defineTool, siteParam, type ToolDef } from '../../core/tools.js';
 import { parsePageRef } from '../../core/url.js';
-import { getPage, spaceKeyForId, type PageData } from '../api.js';
+import { deletePage, getPage, spaceKeyForId, type PageData } from '../api.js';
 import { storageToMarkdown } from '../convert/toMarkdown.js';
 import { parseStorage } from '../storage/dom.js';
 import { findReplace } from '../storage/edit.js';
@@ -132,4 +132,16 @@ const pageAppend = defineTool({
   },
 });
 
-export const pageTools: ToolDef[] = [pageGet, pageEdit, pageUpdateSection, pageAppend];
+const pageDelete = defineTool({
+  name: 'page_delete',
+  description: 'Move a published Confluence page to trash. Does not purge pages or delete drafts.',
+  annotations: { readOnlyHint: false, destructiveHint: true },
+  shape: { url: urlParam, site: siteParam },
+  async run(args, rt) {
+    const { srt, id } = pageTarget(args, rt);
+    await deletePage(srt, id);
+    return `Moved page ${id} to trash on ${srt.site.name}.`;
+  },
+});
+
+export const pageTools: ToolDef[] = [pageGet, pageEdit, pageUpdateSection, pageAppend, pageDelete];

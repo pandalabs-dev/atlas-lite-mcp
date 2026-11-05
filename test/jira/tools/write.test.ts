@@ -113,7 +113,7 @@ async function runNoDefault(name: string, args: Record<string, unknown>) {
 
 describe('jiraModule', () => {
   it('exposes the write tools after the read tools', () => {
-    expect(jiraModule.tools.map((t) => t.name)).toEqual(['issue_get', 'issue_search', 'issue_transition', 'issue_comment', 'issue_create', 'issue_update']);
+    expect(jiraModule.tools.map((t) => t.name)).toEqual(['issue_get', 'issue_search', 'issue_transition', 'issue_comment', 'issue_create', 'issue_update', 'issue_delete']);
   });
 });
 

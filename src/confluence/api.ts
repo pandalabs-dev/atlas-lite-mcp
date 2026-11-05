@@ -23,6 +23,13 @@ interface PageResponse {
 
 const pagePath = (id: string) => `/wiki/api/v2/pages/${encodeURIComponent(id)}`;
 
+/** Moves a published page to trash; never purges it or permanently discards a draft. */
+export async function deletePage(rt: SiteRuntime, id: string): Promise<void> {
+  await rt.http.request<undefined>('confluence', 'DELETE', pagePath(id), {
+    notFound: `page ${id}`,
+  });
+}
+
 export async function getPage(rt: SiteRuntime, id: string): Promise<PageData> {
   const res = await rt.http.request<PageResponse>('confluence', 'GET', pagePath(id), {
     query: { 'body-format': 'storage' },
