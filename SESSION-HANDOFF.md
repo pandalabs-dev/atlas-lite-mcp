@@ -1,86 +1,55 @@
-# SESSION HANDOFF, atlas-lite-mcp
+# Session handoff: atlas-lite-mcp
 
-## Current state, 2026-11-04
+## Current state, 2026-11-05
 
-Paused at the owner's request after Task 18. Task 18 is implemented, independently reviewed and committed. Task 19 is next but has not started. Do not resume automatically or request scratch IDs during this pause.
+The owner resumed work on 2026-11-05. The old pause after Task 18 is over.
 
-- Repository: `/Users/andrijaperic/development/atlas-lite-mcp`, branch `v0.1`. Code HEAD before this documentation commit: `5a2debe249d7d046657e56630175409509095a31`, `test: add opt-in live smoke test for scratch page and issue`. `main` remains at `3a3b8d4`; no merge performed.
-- No configured Git remote, push, deployment, GitHub publication or npm publication. Work remains local by explicit instruction.
-- Fresh final offline verification: 387 unit tests in 29 files passed with `ATLAS_ALLOW_NETWORK` unset and dummy PAGE=1 / ISSUE=GUM-1; the live suite was excluded and the global-fetch-blocked assertion passed. Typecheck, build and diff whitespace checks passed.
-- Controller's fresh post-commit disabled-smoke check at 15:21:39 on 2026-11-04: exit 0, one skipped file and six skipped tests, with PAGE, ISSUE, ALLOW_NETWORK and all three ACK variables unset. This is controller-reported evidence, not a live run.
-- **Smoke not run, ids pending.** No live network/Atlassian writes occurred. Disabled-suite acceptance is not live validation.
-- Version remains `0.1.0`. Earlier Task 16 verification established that built `dist/index.js` answers MCP initialize, exits when stdin closes and prints the version for `--version`; that handshake was not rerun during Task 18.
+- Branch: `main`, fast-forwarded from `v0.1`; the merged short-lived branch was deleted. Implementation HEAD: `7485277`.
+- Public repository: https://github.com/pandalabs-dev/atlas-lite-mcp
+- Remote: `origin`, https://github.com/pandalabs-dev/atlas-lite-mcp.git. Main was pushed and its remote SHA verified.
+- Package version: `0.1.0`. The npm package is not published and no release tag exists yet.
+- Local deployment: built `dist/index.js`, registered as `atlas` in the owner's Claude Code user configuration and Codex user configuration. Both use the existing Node 22.21.1 binary by absolute path. Claude Code reports Connected. Existing sessions were not restarted.
+- Atlassian access: not configured at verification time. No private sites.json or ATLASSIAN_* process variables were found. No live Atlassian reads or writes were made.
+- npm authentication: `npm whoami` returned ENEEDAUTH. The owner was asked to run `npm login` personally and confirm completion; no login was attempted by the agent.
 
-## Task 18 implementation and review
+## Work completed
 
-Six files committed in `5a2debe`: `vitest.smoke.config.ts`, `test/smoke/live.test.ts`, `test/smoke/scenarios.ts`, `test/smoke/settlement.ts`, `test/smoke-safety.test.ts`, `test/smoke-settlement.test.ts`.
+- Task 19 had already been completed after the old handoff: README/license/package metadata in `91c7e90`, public examples/fixtures in `7b855bd`, documentation corrections in `f62fe1f`.
+- `507c84e`: fixed explicit profile selection for URLs when profiles share a hostname; ambiguous hosts now request a profile name instead of silently choosing credentials.
+- `507c84e`: fixed ORDER BY handling inside single-quoted strings, scope detection inside quoted search text, quoted field names and Confluence `space.key` scope clauses.
+- `507c84e`: preserved null when clearing optional Jira fields, rejected clearing required fields, and rejected non-finite numeric field values before JSON serialization could turn them into null.
+- `507c84e`: corrected the runtime engine floor to Node >=20.19.0, matching installed production dependencies and the README. Added Codex and local source setup instructions.
+- `7485277`: preserved nested Confluence panels and column layouts, atomic placeholder restoration, literal markdown text and Jira table geometry; rejected ambiguous Jira custom-field names on reads and writes. Added regression coverage and updated token documentation.
+- Created the public GitHub repository and pushed main. Publication to GitHub does not mean the npm release or live Atlassian validation is complete.
 
-- Six opt-in live scenarios cover page append/edit cleanup, exact table-cell XHTML restoration, outline/section read, permanent Jira comment, temporary unique label, and transition/return.
-- Failure-path cleanup runs after failed assertions and ambiguous responses. Original and cleanup failures are combined. Readback verifies state; conflicts and incomplete fixtures fail rather than quietly skip or warn.
-- Whole local tool handler promises are tracked across SDK timeout, HTTP retries and retry sleeps. Calls, scenarios and shutdown await settlement; a scenario deadline prevents later scenarios from running over abandoned work. Test timeout stays 120000 ms; hook timeout is finite at 120000 ms.
-- Read-only transition discovery replaces the old unsafe nonexistent-status probe. Reverse transitions named like their destination, such as Open -> Open while currently Doing, are supported without losing duplicate-name/current-status-no-op protections.
-- Independent initial review found I1-I4; fix round 1 addressed all four and `task-18-re-review-1.md` approved removal of the temporary hold. The unconditional throw and its stale comment were removed only after approval. All real network/target/ACK and restoration protections remain.
+## Verified
 
-### Future live smoke prerequisites
+- Node 22.21.1: 424 offline unit tests in 30 files, typecheck and build passed. Initial routing/field regressions failed before their fixes; review reproductions also failed before the preservation fixes. Tests include real tool read/write no-op checks and no-PUT guards.
+- Built tarball: 44 files, limited to package.json, README.md, LICENSE and dist/**. Installed into a fresh temporary directory with production dependencies only and scripts disabled.
+- Installed bin and local npm exec: --version returned 0.1.0; --help passed.
+- Actual stdio MCP client against the installed package: initialize, tools/list (17 tools, 8,329 characters), missing-config guidance, invalid-input handling and close all passed; stderr was empty.
+- Installed final package on Node 20.19.0 and Node 22.21.1: version, initialize, all 17 tool definitions, missing-config guidance, invalid-input handling and clean stderr passed.
+- `pnpm audit --prod`: no known vulnerabilities at verification time.
+- Disabled smoke suite: six skipped tests, with all network, target and acknowledgement variables unset. This is not live validation.
+- Git history: checked 36 earlier commits for common credential/private-key patterns with no hits. This is a bounded scan, not a universal guarantee.
 
-A future live run is separate, explicitly authorized work, not a continuation implied by this handoff.
+## Next steps requiring the owner
 
-1. Owner designates one disposable scratch Confluence page ID and one disposable **uppercase bare Jira key**, not an issue URL or lower-case key. Never infer targets from ordinary project objects.
-2. Select the intended site using `ATLAS_SMOKE_SITE` when more than one is configured; otherwise exactly one site must exist. Configuration comes from `sites.json` or the documented `ATLASSIAN_*` variables. Never print credentials.
-3. Obtain actual informed owner permission for a permanent comment and possibly irreversible transition side effects. Require exclusive access/no concurrent writers and a manual recovery plan.
-4. Supply `ATLAS_SMOKE_PAGE`, `ATLAS_SMOKE_ISSUE`, `ATLAS_ALLOW_NETWORK=1`, and each explicit acknowledgement: `ATLAS_SMOKE_ACK_EXCLUSIVE_SCRATCH=1`, `ATLAS_SMOKE_ACK_PERMANENT_COMMENT=1`, `ATLAS_SMOKE_ACK_TRANSITION_RISK=1`. Environment flags do not replace real permission.
-5. Do not retry after an ambiguous or timed-out write until local settlement and resulting remote state have been inspected. Comments are intentionally not deleted.
+1. Configure Atlassian access locally: from this checkout run `node dist/index.js init`. Enter the token only in the hidden local prompt or use a private environment reference. Then verify `sites_list` through a new client session; inspect product reachability rather than treating the MCP connection as proof of Atlassian access.
+2. Complete npm login in the owner's terminal and confirm it. Recheck `npm whoami` and that the package name/version are still available, publish with the established hook, verify registry installation and handshake, then create/push tag `v0.1.0`. Do not claim npm availability before those checks pass.
+3. For live write verification, the owner must designate a disposable Confluence page and uppercase Jira issue key plus a site/profile, accept the permanent comment and transition side effects, and reserve the targets for exclusive use. Never infer scratch targets from business content. See README for fixture and acknowledgement requirements.
+4. On a failed/ambiguous write, inspect resulting remote state before retrying. No delete calls or cleanup of remote objects are authorized by this handoff.
 
-Local handler settlement does not prove an unknowable remote commit after an HTTP timeout. A process crash, forced termination, or expired finite teardown hook can prevent cleanup and is a failed/unknown run requiring manual inspection. Jira labels/status lack atomic compare-and-swap; workflow side effects may be irreversible even when status returns. Live permissions, scoped routing, canonicalization and reverse workflow availability remain unverified.
+## Review and evidence
 
-### Deferred Task 18 minors
-
-- Test-only instrumented McpServer uses the same `registerModules` and product modules as the thin `createServer` factory, but factory metadata/package-version loading is not smoke-covered; future factory wiring could drift.
-- A queued scenario rejected by the poisoned-state check can retain its early abort listener until context collection.
-- Transition acknowledgement formatting uses unnormalized issue input; the supported smoke setup should use an uppercase bare key.
-- ACK negative tests do not independently omit every required flag combination.
-
-## Evidence and execution workspace
-
-Plan: `docs/superpowers/plans/2026-11-03-atlas-lite-mcp.md` (20 tasks). Binding spec: `docs/superpowers/specs/2026-11-03-atlas-lite-mcp-design.md`.
-
-Existing ignored workspace: `/Users/andrijaperic/development/atlas-lite-mcp/.superpowers/sdd/2026-11-03-atlas-lite-mcp/`. Preserve it until final review/release is complete.
-
-- `progress.md`: append-only task history; Tasks 1 to 18 have completion records. Task 18 live run remains pending per brief Step 3.
-- `rulings.md`: R1 to R29, controller decisions to include in the final plan report.
-- `task-18-continuation-report.md`: implementation, red/green evidence, risks, fix round and final outcome.
-- `task-18-safety-review.md`, `task-18-re-review-1.md`, `task-18-fix-round-1.diff`: independent findings, scoped approval and fix diff.
-- `task-18-fix-i2-red.log`, `task-18-fix-i3-red.log`, `task-18-fix-focused-green.log`: timeout/late-write and realistic transition regression evidence.
-- `task-18-final-unit.log`, `task-18-final-typecheck.log`, `task-18-final-build.log`, `task-18-final-whitespace.log`: actual final implementer command outputs. The controller's final disabled-smoke result is recorded above and in the ledger/report, not misrepresented as an implementer log.
-- `global-constraints.md`, `task-N-brief.md`, earlier reports/review packages remain available.
-
-## Useful earlier task references
-
-| Task | Commits | Review/result |
-| --- | --- | --- |
-| 13 table tools | `a63c3b8` | approved |
-| 14 issue read/transition/comment | `2609287` | approved, R24 |
-| 15 issue create/update | `9018198`, fix `7f28310` | approved after fixes, R25 |
-| 16 server wiring/sites_list/index | `2523db4`, fix `16590c2` | approved; tools/list 8,329 chars under 12,000 budget, R26 |
-| 17 interactive init | `e8a0083`, fix `5f615e3` | approved; secret history fixed with historySize 0 and TTY regression, R27 |
-| 17 handoff | `b00ca01` | baseline for Task 18 |
-| 18 smoke harness and safety | `5a2debe` | independent re-review approved; 387 tests green; no live run |
-
-Task 17 also narrowed early-input handling to `InputEndedError`; other prompter faults report `init failed: <message>`. Its brief's older 401 wording is superseded by the real client message `Token or email for site <name> rejected (401). ...` (R27).
-
-## Remaining work after the owner resumes
-
-1. Task 19, README + LICENSE + packaging, `task-19-brief.md`: not started. Add the planned bin/files/prepublishOnly metadata and MIT copyright, then verify `npm pack --dry-run` includes only package.json, README.md, LICENSE and dist/**. Consider whether the handoff should remain out of the public repository.
-2. Whole-branch independent review of `3a3b8d4..HEAD`, including earlier deferred minors in `progress.md`, then the scoped fix/review process. No whole-branch review occurred during Task 18.
-3. Merge `v0.1` fast-forward into `main`, then delete the short-lived branch (R17). Not authorized/executed during this pause.
-4. Task 20 release on main: remote creation, push and npm publication remain pending. Earlier 2026-11-03 observations were that the repo/package name was unclaimed and npm login was needed; recheck when authorized rather than assume they remain current. Owner performs npm login in their own terminal. No publication is authorized by this handoff.
-5. Only after final review is clean and records are preserved, finish the plan's ruling/deferred-minor report and workspace cleanup. Update project memory as appropriate at that later boundary.
+The original plan and spec remain in `docs/superpowers/`. The ignored `.superpowers/sdd/2026-11-03-atlas-lite-mcp/` directory contains the original progress log, rulings R1-R29, per-task reviews and smoke safety evidence. Keep it until release and live validation are finished. Independent review of `507c84e` found four material issues plus two preservation residuals. All six were fixed in `7485277`; the scoped re-review approved release with no remaining material findings. The reviewer independently ran 19 preservation/field probes and 19 parser comparison cases against fresh dist. Preserve the release-review-red.log reproduction evidence in the ignored execution directory.
 
 ## Standing gotchas
 
-- No pattern kills; close stdin to stop the server. Never delete remote pages/issues or add DELETE tools/HTTP calls, including in tests.
-- No em/en dashes or attribution in source, tests, docs or commits. Commit messages follow the task brief. Main is the only long-lived branch.
-- Unit tests must stay offline; do not set `ATLAS_ALLOW_NETWORK=1` for `pnpm test`. `pnpm test` excludes test/smoke/**; the live suite uses its separate config and narrowed **/*.test.ts discovery.
-- Secrets only via env or private sites.json. HTTP errors redact token and Basic credentials; never print them.
-- `splitOrderBy` ignores single-quoted literals, deferred from Task 12.
-- Scoped tokens use `https://api.atlassian.com/ex/{jira|confluence}/{cloudId}`; cloudId is resolved from `_edge/tenant_info` and cached. Those routes have not been live-tested here.
+- Commits belong to Andrija Peric only; no co-author trailers or attribution. No em/en dashes in source, tests or documentation.
+- Stdout is MCP only; diagnostics go to stderr. Never print tokens or Basic credentials.
+- Unit tests are offline; do not set ATLAS_ALLOW_NETWORK=1 for `pnpm test`.
+- No DELETE tools or HTTP requests. No pattern-based process kills. Do not restart unrelated live daemons or client sessions.
+- Rebuild after changing source. Local client registrations point at this checkout, not an npm installation.
+- File configuration wins over env fallback. Scoped token routing and live write permissions still need actual account verification.
+- Placeholder numbers refer to current page/issue content, not a durable concurrency handle; re-read changed content before editing.
