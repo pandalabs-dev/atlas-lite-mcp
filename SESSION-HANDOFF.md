@@ -7,10 +7,10 @@ The owner resumed work on 2026-11-05. The old pause after Task 18 is over.
 - Branch: `main`, fast-forwarded from `v0.1`; the merged short-lived branch was deleted. Implementation HEAD: `7485277`.
 - Public repository: https://github.com/pandalabs-dev/atlas-lite-mcp
 - Remote: `origin`, https://github.com/pandalabs-dev/atlas-lite-mcp.git. Main was pushed and its remote SHA verified.
-- Package version: `0.1.0`. The npm package is not published and no release tag exists yet.
-- Local deployment: built `dist/index.js`, registered as `atlas` in the owner's Claude Code user configuration and Codex user configuration. Both use the existing Node 22.21.1 binary by absolute path. Claude Code reports Connected. Existing sessions were not restarted.
+- Package version: `0.1.0`, published publicly as `atlas-lite-mcp@0.1.0` and confirmed as npm latest. Package page: https://www.npmjs.com/package/atlas-lite-mcp. Published source commit: `c42559c`. Release tag: `v0.1.0`.
+- Installation ownership: the owner explicitly wants to install from npm and choose client registration personally. The source-checkout `atlas` registrations previously added by the agent were removed from Claude Code and Codex after checking they still matched the agent-added entries. No global package installation or replacement client registration was performed. Existing sessions were not restarted.
 - Atlassian access: not configured at verification time. No private sites.json or ATLASSIAN_* process variables were found. No live Atlassian reads or writes were made.
-- npm authentication: `npm whoami` returned ENEEDAUTH. The owner was asked to run `npm login` personally and confirm completion; no login was attempted by the agent.
+- npm authentication: the owner completed npm login and the browser confirmation for publishing. `npm whoami` returned `pandalabsdev`. npm publication succeeded; registry propagation and the latest tag were checked.
 
 ## Work completed
 
@@ -20,7 +20,8 @@ The owner resumed work on 2026-11-05. The old pause after Task 18 is over.
 - `507c84e`: preserved null when clearing optional Jira fields, rejected clearing required fields, and rejected non-finite numeric field values before JSON serialization could turn them into null.
 - `507c84e`: corrected the runtime engine floor to Node >=20.19.0, matching installed production dependencies and the README. Added Codex and local source setup instructions.
 - `7485277`: preserved nested Confluence panels and column layouts, atomic placeholder restoration, literal markdown text and Jira table geometry; rejected ambiguous Jira custom-field names on reads and writes. Added regression coverage and updated token documentation.
-- Created the public GitHub repository and pushed main. Publication to GitHub does not mean the npm release or live Atlassian validation is complete.
+- Created the public GitHub repository and pushed main.
+- `c42559c`: documented normal npm installation and owner-controlled client registration. Published that exact commit as `0.1.0`, then verified a fresh registry installation, private init, installed CLI and stdio MCP handshake. Live Atlassian validation remains separate.
 
 ## Verified
 
@@ -35,8 +36,8 @@ The owner resumed work on 2026-11-05. The old pause after Task 18 is over.
 
 ## Next steps requiring the owner
 
-1. Configure Atlassian access locally: from this checkout run `node dist/index.js init`. Enter the token only in the hidden local prompt or use a private environment reference. Then verify `sites_list` through a new client session; inspect product reachability rather than treating the MCP connection as proof of Atlassian access.
-2. Complete npm login in the owner's terminal and confirm it. Recheck `npm whoami` and that the package name/version are still available, publish with the established hook, verify registry installation and handshake, then create/push tag `v0.1.0`. Do not claim npm availability before those checks pass.
+1. Install using `npm install -g atlas-lite-mcp`, then run `atlas-lite-mcp init`. Enter the token only in the hidden local prompt or use a private environment reference.
+2. Register the server in the MCP client the owner chooses, using the README instructions. Then verify `sites_list` through a new client session; inspect product reachability rather than treating the MCP connection as proof of Atlassian access.
 3. For live write verification, the owner must designate a disposable Confluence page and uppercase Jira issue key plus a site/profile, accept the permanent comment and transition side effects, and reserve the targets for exclusive use. Never infer scratch targets from business content. See README for fixture and acknowledgement requirements.
 4. On a failed/ambiguous write, inspect resulting remote state before retrying. No delete calls or cleanup of remote objects are authorized by this handoff.
 
@@ -50,6 +51,7 @@ The original plan and spec remain in `docs/superpowers/`. The ignored `.superpow
 - Stdout is MCP only; diagnostics go to stderr. Never print tokens or Basic credentials.
 - Unit tests are offline; do not set ATLAS_ALLOW_NETWORK=1 for `pnpm test`.
 - No DELETE tools or HTTP requests. No pattern-based process kills. Do not restart unrelated live daemons or client sessions.
-- Rebuild after changing source. Local client registrations point at this checkout, not an npm installation.
+- The owner installs from npm and chooses client registration. Do not auto-install a source build or change MCP client registrations without an explicit request.
+- Published tarball SHA-1: `ec701c888db376d472bd073b9eb6cce251a194d3`, 44 files, 189,493 unpacked bytes. Registry-installed bin, npm exec, private init (mode 600), initialize and all 17 tools were verified in a temporary directory that was removed afterward.
 - File configuration wins over env fallback. Scoped token routing and live write permissions still need actual account verification.
 - Placeholder numbers refer to current page/issue content, not a durable concurrency handle; re-read changed content before editing.
